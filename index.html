@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>野沢温泉 滑雪行程 · 2027.01</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700;900&family=Noto+Sans+TC:wght@400;500;700&family=Shippori+Mincho:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --snow:#EAF1F6;--surface:#FFFFFF;--surface2:#F5F9FC;
+    --ink:#14263B;--muted:#5E7189;--ice:#2E5E80;--ice-soft:#9EBED4;
+    --ember:#C6472F;--ember-soft:#F4E0DA;--gold:#B98A2E;--line:#D7E3EC;
+    --shadow:0 6px 22px rgba(20,38,59,.10);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--snow);color:var(--ink);font-family:"Noto Sans TC",system-ui,sans-serif;line-height:1.65;-webkit-font-smoothing:antialiased;padding-bottom:56px}
+  .wrap{max-width:480px;margin:0 auto;padding:0 18px}
+  .hero{position:relative;overflow:hidden;background:linear-gradient(165deg,#16324B 0%,#1E4763 55%,#2E5E80 100%);color:#fff;padding:40px 0 34px;margin-bottom:8px;border-bottom-left-radius:26px;border-bottom-right-radius:26px}
+  .hero .wrap{position:relative;z-index:2}
+  .eyebrow{font-family:"Shippori Mincho",serif;letter-spacing:.42em;font-size:12px;color:var(--ice-soft);text-transform:uppercase;margin:0 0 12px}
+  .hero h1{font-family:"Noto Serif TC",serif;font-weight:900;font-size:34px;line-height:1.22;margin:0 0 6px;letter-spacing:.01em}
+  .hero h1 span{color:#F2C879}
+  .dates{font-size:14px;color:#D7E7F2;margin:0 0 20px;font-weight:500}
+  .route{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;font-weight:500}
+  .route b{background:rgba(255,255,255,.13);padding:5px 11px;border-radius:20px;font-weight:600}
+  .route i{color:var(--ice-soft);font-style:normal}
+  .snow{position:absolute;inset:0;z-index:1;pointer-events:none}
+  .snow span{position:absolute;top:-10px;color:rgba(255,255,255,.55);animation:fall linear infinite}
+  @keyframes fall{to{transform:translateY(360px) rotate(180deg);opacity:0}}
+  .legend{display:flex;gap:8px;align-items:center;justify-content:center;font-size:12px;color:var(--muted);margin:16px auto 22px;text-align:center}
+  .legend .dot{width:9px;height:9px;border-radius:50%;background:var(--ember);display:inline-block}
+  .track{position:relative;padding-left:6px}
+  .day{position:relative;display:grid;grid-template-columns:58px 1fr;gap:14px;padding-bottom:22px}
+  .day::before{content:"";position:absolute;left:20px;top:8px;bottom:-4px;width:2px;background:linear-gradient(var(--ice-soft),var(--line))}
+  .day:last-child::before{display:none}
+  .mark{position:relative;text-align:center;z-index:2}
+  .mark .num{font-family:"Shippori Mincho",serif;font-weight:800;font-size:30px;color:var(--ice);line-height:1;display:block}
+  .mark .mon{font-size:11px;color:var(--muted);letter-spacing:.1em}
+  .mark .wk{display:inline-block;margin-top:6px;font-size:11px;font-weight:700;color:#fff;background:var(--ice);border-radius:12px;padding:1px 8px}
+  .mark .wk.sun{background:var(--ember)}
+  .mark .wk.sat{background:var(--gold)}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:16px 16px 14px;overflow:hidden}
+  .card h3{font-family:"Noto Serif TC",serif;font-weight:700;font-size:17px;margin:0 0 4px}
+  .card .tagline{font-size:12.5px;color:var(--muted);margin:0 0 12px}
+  .plan{list-style:none;margin:0;padding:0}
+  .plan li{display:flex;gap:9px;align-items:flex-start;font-size:14px;padding:5px 0;border-top:1px dashed var(--line)}
+  .plan li:first-child{border-top:none}
+  .plan .ic{flex:0 0 20px;text-align:center;font-size:15px;line-height:1.55}
+  .plan em{font-style:normal;color:var(--muted);font-size:12.5px}
+  .dinner{margin-top:13px;background:var(--ember-soft);border:1px solid #E7C7BE;border-radius:13px;padding:12px 13px}
+  .dinner .dh{display:flex;align-items:center;gap:7px;font-weight:700;color:var(--ember);font-size:12px;letter-spacing:.14em;margin-bottom:6px}
+  .dinner .rname{font-family:"Noto Serif TC",serif;font-weight:700;font-size:15.5px;color:var(--ink);margin:0 0 3px}
+  .dinner .rmeta{font-size:12.5px;color:#7A4B3F;margin:2px 0}
+  .dinner .rmeta b{color:var(--ember)}
+  .dinner .warn{color:#A23A22;font-weight:700}
+  .tags{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0 2px}
+  .tags span{font-size:11px;background:#fff;border:1px solid #E7C7BE;color:#8A4433;border-radius:20px;padding:2px 9px}
+  .btns{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
+  .btn{flex:1 1 auto;min-width:96px;text-align:center;text-decoration:none;font-size:13px;font-weight:700;padding:9px 10px;border-radius:10px;transition:transform .08s ease,filter .12s ease}
+  .btn:active{transform:translateY(1px)}
+  .btn.map{background:var(--ember);color:#fff}
+  .btn.book{background:#fff;color:var(--ember);border:1.5px solid var(--ember)}
+  .btn.menu{background:#fff;color:var(--ice);border:1.5px solid var(--ice-soft)}
+  .btn:hover{filter:brightness(1.03)}
+  .stay{display:flex;align-items:center;gap:8px;margin-top:11px;font-size:13px;background:var(--surface2);border:1px solid var(--line);border-radius:11px;padding:9px 11px}
+  .stay .sl{font-weight:700;color:var(--ice);white-space:nowrap}
+  .stay a{margin-left:auto;color:var(--ice);font-weight:700;text-decoration:none;font-size:12.5px;white-space:nowrap}
+  .stay a::after{content:" ↗"}
+  .note{font-size:12px;color:var(--muted);background:var(--surface2);border-left:3px solid var(--gold);border-radius:0 8px 8px 0;padding:8px 11px;margin-top:11px}
+  .info{background:linear-gradient(170deg,#FFFFFF,#EFF6FB);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:18px 16px;margin-bottom:26px}
+  .info-head{display:flex;gap:12px;align-items:center;margin-bottom:14px}
+  .info-head .ski-ic{font-size:30px;flex:0 0 auto}
+  .info-head h2{font-family:"Noto Serif TC",serif;font-size:19px;margin:0;color:var(--ice)}
+  .info-head p{font-size:12px;color:var(--muted);margin:3px 0 0}
+  .ibtns{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:6px}
+  .ibtn{flex:1 1 auto;min-width:104px;text-align:center;text-decoration:none;font-size:13px;font-weight:700;padding:9px 8px;border-radius:10px;background:#fff;color:var(--ice);border:1.5px solid var(--ice-soft);transition:transform .08s ease}
+  .ibtn.primary{background:var(--ice);color:#fff;border-color:var(--ice)}
+  .ibtn:active{transform:translateY(1px)}
+  .isub{font-family:"Noto Serif TC",serif;font-size:14.5px;margin:18px 0 8px;color:var(--ink);border-left:3px solid var(--ember);padding-left:9px}
+  .isub small{font-weight:400;color:var(--muted);font-size:11px;font-family:"Noto Sans TC",sans-serif}
+  .ptable{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:6px}
+  .ptable th{background:var(--ice);color:#fff;font-weight:600;padding:7px 6px;font-size:12px}
+  .ptable th:first-child{border-top-left-radius:8px}
+  .ptable th:last-child{border-top-right-radius:8px}
+  .ptable td{border:1px solid var(--line);padding:7px 6px;text-align:center}
+  .ptable td.l{text-align:left;font-weight:700;color:var(--ice);background:var(--surface2)}
+  .ptable td.span{text-align:left;color:var(--muted);font-size:12px}
+  .ifine{font-size:11.5px;color:var(--muted);margin:5px 0 0;line-height:1.6}
+  .ilist{margin:0;padding-left:18px;font-size:13px}
+  .ilist li{padding:3px 0}
+  .ilist b{color:var(--ice)}
+  .mapwrap{margin:2px 0 4px;position:relative}
+  .mapcap{font-family:"Noto Serif TC",serif;font-size:14.5px;margin:16px 0 8px;color:var(--ink);border-left:3px solid var(--ember);padding-left:9px}
+  .mapthumb{width:100%;display:block;border-radius:12px;border:1px solid var(--line);box-shadow:var(--shadow);cursor:zoom-in}
+  .maphint{position:absolute;right:10px;bottom:10px;background:rgba(20,38,59,.82);color:#fff;font-size:11px;font-weight:700;padding:4px 9px;border-radius:20px;pointer-events:none}
+  .maplinks{display:flex;gap:7px;margin-top:8px}
+  .lightbox{display:none;position:fixed;inset:0;z-index:9999;background:rgba(10,18,28,.94);flex-direction:column}
+  .lightbox.open{display:flex}
+  .lb-bar{display:flex;align-items:center;gap:10px;justify-content:flex-end;padding:10px 14px;flex:0 0 auto}
+  .lb-bar a{color:#cfe0ec;font-size:13px;font-weight:700;text-decoration:none;margin-right:auto}
+  .lb-bar button{background:rgba(255,255,255,.14);color:#fff;border:none;border-radius:50%;width:34px;height:34px;font-size:17px;cursor:pointer}
+  .lb-scroll{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;display:flex;align-items:flex-start;justify-content:center;padding:0 6px 14px;touch-action:auto}
+  #lbimg{width:100%;height:auto;max-width:1600px;border-radius:8px;cursor:zoom-in;transition:width .15s ease}
+  #lbimg.zoomed{width:220%;max-width:none;cursor:zoom-out}
+  .lb-tip{color:#9db4c6;font-size:11.5px;text-align:center;padding:0 0 12px}
+  footer{text-align:center;color:var(--muted);font-size:11.5px;margin-top:26px;line-height:1.7}
+  footer .hr{width:38px;height:2px;background:var(--ice-soft);margin:0 auto 14px;border-radius:2px}
+  @media (prefers-reduced-motion:reduce){.snow span{animation:none;display:none}}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="snow" id="snow" aria-hidden="true"></div>
+  <div class="wrap">
+    <p class="eyebrow">Nozawa Onsen · Ski Trip</p>
+    <h1>野沢温泉<span>雪</span>之旅<br>滑雪 6 日</h1>
+    <p class="dates">2027 / 01 / 16（六）– 01 / 24（日）</p>
+    <div class="route">
+      <b>🇹🇼 台灣</b><i>→</i><b>✈ 成田</b><i>→</i><b>🚐 野沢</b><i>→</i><b>🚄 上野</b>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <p class="legend"><span class="dot"></span>已為 8 人挑較大、可訂位的店 · 點按即導航／訂位</p>
+
+  <section class="info">
+    <div class="info-head">
+      <span class="ski-ic">🎿</span>
+      <div>
+        <h2>野沢温泉スキー場</h2>
+        <p>44 條路線 · 最長滑走 10,000m · 標高差 1,085m · 40% 適合初學者</p>
+      </div>
+    </div>
+    <div class="ibtns">
+      <a class="ibtn primary" href="https://nozawaski.com/">🌐 官方網站</a>
+      <a class="ibtn" href="https://nozawaski.com/winter/course/map/">🗺 雪場地圖</a>
+      <a class="ibtn" href="https://nozawaski.com/winter/lift_price/">🎟 購票頁</a>
+      <a class="ibtn" href="https://www.google.com/maps/search/?api=1&query=Nozawa%20Onsen%20Snow%20Resort%20%E9%87%8E%E6%B2%A2%E6%B8%A9%E6%B3%89%E3%82%B9%E3%82%AD%E3%83%BC%E5%A0%B4">📍 導航</a>
+    </div>
+
+    <h4 class="mapcap">🗺 雪道圖 <small style="font-weight:400;color:var(--muted);font-size:11px">（點圖放大 · 可縮放）</small></h4>
+    <div class="mapwrap">
+      <img class="mapthumb" src="nozawa-map.jpg" alt="野沢温泉スキー場 雪道圖 Ski Area Map" onclick="openMap()" loading="lazy">
+      <span class="maphint">🔍 點圖放大</span>
+    </div>
+
+    <h4 class="isub">🎟 纜車券價格 <small>2025-26 通常期參考（12/20–3/29）</small></h4>
+    <table class="ptable">
+      <thead><tr><th>券種</th><th>大人</th><th>國中以下</th><th>60歲+</th></tr></thead>
+      <tbody>
+        <tr><td class="l">1 日券</td><td>¥7,500</td><td>¥4,500</td><td>¥6,000</td></tr>
+        <tr><td class="l">4 小時券</td><td class="span" colspan="3">連續 4 小時 · 限當日（金額以官網／現場為準）</td></tr>
+        <tr><td class="l">夜間券</td><td>¥2,700</td><td>¥1,600</td><td>—</td></tr>
+      </tbody>
+    </table>
+    <p class="ifine">未就學兒童：大人同伴免費（1 大人限 1 名）｜IC 卡押金另收 ¥500（退卡時退還）｜下山方向纜車免費</p>
+
+    <h4 class="isub">🐦 早鳥 / 省錢重點</h4>
+    <ul class="ilist">
+      <li>野沢的「單日早鳥」折扣很少，主要早鳥落在 <b>季票</b>（夏季起販售、需事前郵寄）。</li>
+      <li><b>信越自然郷 Super Value</b>：5 張綴 ¥29,000（10/1–12/31 販售、限量 1,500），但野沢需另加 ¥1,500/次 ≈ ¥7,300/日，省得有限。</li>
+      <li>最實際：向住宿 <b>山のホテル大瀧</b> 購買住宿者折扣雪票（常有「雪票＋餐券」pack），入住時先問櫃台。</li>
+      <li>4 小時券適合最後一天或半日行程；早鳥不影響它，現場買即可。</li>
+    </ul>
+    <div class="note">⚠️ 你們是 <b>2027 年 1 月（2026-27 雪季）</b>：上表為 2025-26 季參考價，2026-27 正式票價通常在 2026 秋季才公布，出發前請再上官網確認。</div>
+  </section>
+
+  <div class="track">
+
+    <!-- 1/16 -->
+    <article class="day">
+      <div class="mark"><span class="num">16</span><span class="mon">1月</span><br><span class="wk sat">土 / 六</span></div>
+      <div class="card">
+        <h3>抵達 · 移動日</h3>
+        <p class="tagline">台灣飛成田，包車直上野沢温泉</p>
+        <ul class="plan">
+          <li><span class="ic">✈️</span><div>台灣 → 成田機場<em><br>入境、領行李、與包車司機會合</em></div></li>
+          <li><span class="ic">🚐</span><div>成田下飛機 <b>包車</b> 前往野沢<em><br>車程約 3.5–4 小時</em></div></li>
+          <li><span class="ic">🛒</span><div>途中先到 <b>超市採買</b><em><br>零食、飲料、泡麵、隔天早點</em></div></li>
+          <li><span class="ic">🏨</span><div>抵達野沢，入住 山のホテル大瀧</div></li>
+        </ul>
+        <div class="stay">
+          <span class="sl">🏨 住宿</span><span>山のホテル大瀧（HOTEL OHTAKI）</span>
+          <a href="https://www.google.com/maps/search/?api=1&query=HOTEL%20OHTAKI%20%E9%87%8E%E6%B2%A2%E6%B8%A9%E6%B3%89&query_place_id=ChIJFWSspykF9l8RJRxvqWqZ5DY">地圖</a>
+        </div>
+        <div class="dinner">
+          <div class="dh">🍽 晚餐 · 時間彈性</div>
+          <p class="rname">抵達當晚（免訂位備案）</p>
+          <p class="rmeta">車程長、到得晚，免訂位好解決：美食村 Food village Kongou（多攤位、營業到 22:00），或超市買好回飯店吃。</p>
+          <div class="btns">
+            <a class="btn map" href="https://www.google.com/maps/search/?api=1&query=Food%20village%20Kongou%20Nozawa&query_place_id=ChIJx-t2f-0F9l8RlAOw6oV14aE">🗺 美食村導航</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 1/17 -->
+    <article class="day">
+      <div class="mark"><span class="num">17</span><span class="mon">1月</span><br><span class="wk sun">日 / 日</span></div>
+      <div class="card">
+        <h3>滑雪 Day 1</h3>
+        <p class="tagline">飯店出門即上纜車</p>
+        <ul class="plan">
+          <li><span class="ic">🎿</span><div>野沢温泉滑雪場<em><br>飯店步行 1 分到長坂纜車</em></div></li>
+        </ul>
+        <div class="dinner">
+          <div class="dh">🍶 晚餐 · 8人可訂位</div>
+          <p class="rname">つくし坊 Tsukushinbo</p>
+          <p class="rmeta">⭐4.1 · 常盤屋旅館 B1，座敷低桌多、空間大，是鎮上少數好訂大桌的店　🕕 18:00–23:00</p>
+          <p class="rmeta">招牌：烤雞串、炙燒鰤魚、章魚生魚片、烤飯糰</p>
+          <p class="rmeta">📞 訂位：<b>+81 269-85-3565</b></p>
+          <div class="tags"><span>可容納團體</span><span>座敷低桌</span><span>可訂位</span></div>
+          <div class="btns">
+            <a class="btn map" href="https://www.google.com/maps/search/?api=1&query=Tsukushinbo%20Nozawa&query_place_id=ChIJGRk24C4F9l8RPhOn7Le9pAU">🗺 導航</a>
+            <a class="btn book" href="tel:+81269853565">📞 訂位</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 1/18 -->
+    <article class="day">
+      <div class="mark"><span class="num">18</span><span class="mon">1月</span><br><span class="wk">月 / 一</span></div>
+      <div class="card">
+        <h3>滑雪 Day 2</h3>
+        <ul class="plan">
+          <li><span class="ic">🎿</span><div>野沢温泉滑雪場</div></li>
+          <li><span class="ic">♨️</span><div>晚上泡外湯<em><br>村內 13 處免費外湯</em></div></li>
+        </ul>
+        <div class="dinner">
+          <div class="dh">🍢 晚餐 · 8人可訂位</div>
+          <p class="rname">堺 Sakai（居酒屋）</p>
+          <p class="rmeta">⭐4.4 · 串燒、鹽烤雞翅、炸雞、地酒多；曾接待 14 人團體　🕕 18:00–21:30（每天營業）</p>
+          <p class="rmeta"><b>8 人請提早電話訂位</b>（老闆英文簡單可通、無訂金）</p>
+          <p class="rmeta">📞 訂位：<b>+81 269-85-2177</b></p>
+          <div class="tags"><span>團體可（需早訂）</span><span>鹽烤雞翅</span><span>信州地酒</span></div>
+          <div class="btns">
+            <a class="btn map" href="https://www.google.com/maps/search/?api=1&query=Sakai%20izakaya%20Nozawa&query_place_id=ChIJF0ZZ0i4F9l8R_MmVYQ32kFA">🗺 導航</a>
+            <a class="btn book" href="tel:+81269852177">📞 訂位</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 1/19 -->
+    <article class="day">
+      <div class="mark"><span class="num">19</span><span class="mon">1月</span><br><span class="wk">火 / 二</span></div>
+      <div class="card">
+        <h3>滑雪 Day 3</h3>
+        <ul class="plan">
+          <li><span class="ic">🎿</span><div>野沢温泉滑雪場</div></li>
+        </ul>
+        <div class="dinner">
+          <div class="dh">🍣 晚餐 · 大空間</div>
+          <p class="rname">若木里 Wakagiri</p>
+          <p class="rmeta">⭐4.3（307 則）· 壽司／蕎麥／烏龍，iPad 點餐、有英文與過敏菜單，座位多適合大團　🕔 午 12:00–14:00 · 晚 17:00–20:00</p>
+          <p class="rmeta">很熱門，建議 <b>17:00 一開門就到或先致電</b>（週四僅晚餐）</p>
+          <p class="rmeta">📞 電話：<b>+81 269-85-2040</b></p>
+          <div class="tags"><span>壽司蕎麥</span><span>iPad點餐</span><span>家庭友善</span></div>
+          <div class="btns">
+            <a class="btn map" href="https://www.google.com/maps/search/?api=1&query=Wakagiri%20Nozawa&query_place_id=ChIJ7eiHoi4F9l8Reg8R6LAYeDk">🗺 導航</a>
+            <a class="btn book" href="tel:+81269852040">📞 電話</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 1/20 -->
+    <article class="day">
+      <div class="mark"><span class="num">20</span><span class="mon">1月</span><br><span class="wk">水 / 三</span></div>
+      <div class="card">
+        <h3>滑雪 Day 4 · 新屋烤雞肉丼</h3>
+        <p class="tagline">滑完早點下山排隊，晚市只開 90 分鐘</p>
+        <ul class="plan">
+          <li><span class="ic">🎿</span><div>野沢温泉滑雪場</div></li>
+          <li><span class="ic">🍗</span><div>提早到 <b>新屋</b> 排隊吃烤雞肉丼</div></li>
+        </ul>
+        <div class="dinner">
+          <div class="dh">🍗 早晚餐 · 排隊制</div>
+          <p class="rname">新屋 Atarashiya · 烤雞肉丼</p>
+          <p class="rmeta">⭐4.5 · 野沢名店，烤雞肉丼／親子丼／鰻魚飯</p>
+          <p class="rmeta">🕓 晚市 <b>16:00–17:30</b>（另有午市 11:00–13:30）</p>
+          <p class="rmeta"><span class="warn">排隊制、不收訂位；8 人建議分兩組、務必 16:00 前到排隊；⚠️ 週四公休</span></p>
+          <p class="rmeta">📞 店家電話：<b>+81 269-85-2044</b></p>
+          <div class="tags"><span>烤雞肉丼</span><span>親子丼</span><span>鰻魚飯</span></div>
+          <div class="btns">
+            <a class="btn map" href="https://www.google.com/maps/search/?api=1&query=Atarashiya%20%E6%96%B0%E5%B1%8B%20Nozawa&query_place_id=ChIJ0b-e1TEF9l8RXf-3inK5Shc">🗺 導航</a>
+            <a class="btn menu" href="https://www.google.com/search?q=%E6%96%B0%E5%B1%8B+%E9%87%8E%E6%B2%A2%E6%B8%A9%E6%B3%89+%E7%84%BC%E9%B3%A5%E4%B8%BC+%E3%83%A1%E3%83%8B%E3%83%A5%E3%83%BC">📖 菜單·評價</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 1/21 -->
+    <article class="day">
+      <div class="mark"><span class="num">21</span><span class="mon">1月</span><br><span class="wk">木 / 四</span></div>
+      <div class="card">
+        <h3>滑雪 Day 5</h3>
+        <ul class="plan">
+          <li><span class="ic">🎿</span><div>野沢温泉滑雪場</div></li>
+        </ul>
+        <div class="dinner">
+          <div class="dh">🥩 晚餐 · 8人先訂</div>
+          <p class="rname">和牛亭 Wagyu-tei</p>
+          <p class="rmeta">⭐4.0 · 壽喜燒／涮涮鍋／和牛，套餐附甜點　🕔 17:00–21:30（每天營業）</p>
+          <p class="rmeta">可用 <b>TableCheck 線上訂位</b>；8 人請及早訂（可要求大桌／座敷）</p>
+          <p class="rmeta">📞 電話：<b>+81 269-85-3010</b></p>
+          <div class="tags"><span>和牛壽喜燒</span><span>涮涮鍋</span><span>套餐附甜點</span></div>
+          <div class="btns">
+            <a class="btn map" href="https://www.google.com/maps/search/?api=1&query=Wagyu-tei%20%E5%92%8C%E7%89%9B%E4%BA%AD%20Nozawa&query_place_id=ChIJv2adkS4F9l8Rjlkdr79Q8Hk">🗺 導航</a>
+            <a class="btn book" href="tel:+81269853010">📞 訂位</a>
+            <a class="btn menu" href="https://www.google.com/search?q=%E5%92%8C%E7%89%9B%E4%BA%AD+%E9%87%8E%E6%B2%A2%E6%B8%A9%E6%B3%89+tablecheck+%E4%BA%88%E7%B4%84">📖 線上訂位</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 1/22 -->
+    <article class="day">
+      <div class="mark"><span class="num">22</span><span class="mon">1月</span><br><span class="wk">金 / 五</span></div>
+      <div class="card">
+        <h3>滑雪 Day 6 · 分流日</h3>
+        <p class="tagline">最後一天雪；部分人今天先回東京</p>
+        <ul class="plan">
+          <li><span class="ic">🎿</span><div>野沢温泉滑雪場（最後一天）</div></li>
+          <li><span class="ic">🚄</span><div><b>部分人 今日回東京</b><em><br>野沢温泉 →（接駁）飯山駅 → 北陸新幹線 → 東京／上野</em></div></li>
+        </ul>
+        <div class="note">🔀 分流提醒：22 號離開者當天搭新幹線回東京；留野沢者續住一晚，隔日 23 號再回上野。</div>
+        <div class="dinner">
+          <div class="dh">🍢 晚餐 · 團體先訂（留野沢者）</div>
+          <p class="rname">自由劇場 Jiyu Gekijo</p>
+          <p class="rmeta">⭐4.7 · 老劇場改建、炭火自烤串（按竹籤計費），3 區座位、氣氛超好　🕕 18:00–22:00 · 現金</p>
+          <p class="rmeta"><b>每天客滿，8 人務必提早訂</b>（可能與他人共桌或包一區）</p>
+          <p class="rmeta">📞 訂位：<b>+81 269-85-5115</b></p>
+          <div class="tags"><span>自烤串燒</span><span>啤酒清酒無限</span><span>送別夜首選</span></div>
+          <div class="btns">
+            <a class="btn map" href="https://www.google.com/maps/search/?api=1&query=Jiyu%20Gekijo%20Nozawa&query_place_id=ChIJcw1EfE4F9l8R79jIbS0bzxA">🗺 導航</a>
+            <a class="btn book" href="tel:+81269855115">📞 訂位</a>
+          </div>
+          <div class="note">👥 8 人備案：若訂不到，Billiken 食堂（和／義式、西式+榻榻米座、較寬敞免排隊）☎ +81 269-85-2078</div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 1/23 -->
+    <article class="day">
+      <div class="mark"><span class="num">23</span><span class="mon">1月</span><br><span class="wk sat">土 / 六</span></div>
+      <div class="card">
+        <h3>回上野 · 燒肉之夜</h3>
+        <p class="tagline">搭新幹線回東京，入住上野，晚上和牛燒肉</p>
+        <ul class="plan">
+          <li><span class="ic">🚄</span><div>野沢温泉 → 飯山駅 → <b>北陸新幹線</b> → 上野<em><br>飯山駅接駁巴士 / 包車前往</em></div></li>
+          <li><span class="ic">🏨</span><div>入住 hotel MONday Premium 上野御徒町</div></li>
+          <li><span class="ic">🍖</span><div>晚餐：房家 燒肉（見下方）</div></li>
+        </ul>
+        <div class="stay">
+          <span class="sl">🏨 住宿</span><span>MONday Premium 上野御徒町</span>
+          <a href="https://www.google.com/maps/search/?api=1&query=hotel%20MONday%20Premium%20Ueno%20Okachimachi&query_place_id=ChIJffc5D6GOGGARyW5oxAQvPGg">地圖</a>
+        </div>
+        <div class="dinner">
+          <div class="dh">🍖 晚餐 · 燒肉</div>
+          <p class="rname">房家 Yakiniku Bouya Hormone-kan — Ueno No.2</p>
+          <p class="rmeta">⭐ 4.9 · 上野和牛燒肉名店（2 号店）</p>
+          <p class="rmeta">🕔 <b>週六營業 12:00 – 23:15</b>（1/23 為週六）· 平日 17:00–23:15</p>
+          <p class="rmeta">📞 訂位：<b>+81 50-1724-7912</b>　也可用 Google 地圖線上訂位</p>
+          <div class="tags"><span>和牛拼盤</span><span>頂級牛舌</span><span>蒜香炒飯</span><span>檸檬沙瓦</span></div>
+          <div class="btns">
+            <a class="btn map" href="https://www.google.com/maps/search/?api=1&query=Yakiniku%20Bouya%20Hormone-kan%20Ueno%20No.2&query_place_id=ChIJBdFeZQCPGGARRO1MXkHTxZg">🗺 導航</a>
+            <a class="btn book" href="tel:+815017247912">📞 訂位</a>
+            <a class="btn menu" href="https://www.google.com/search?q=%E6%88%BF%E5%AE%B6+%E3%83%9B%E3%83%AB%E3%83%A2%E3%83%B3%E9%A4%A8+%E4%B8%8A%E9%87%8E+2%E5%8F%B7%E5%BA%97+%E3%83%A1%E3%83%8B%E3%83%A5%E3%83%BC">📖 菜單·評價</a>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 1/24 -->
+    <article class="day">
+      <div class="mark"><span class="num">24</span><span class="mon">1月</span><br><span class="wk sun">日 / 日</span></div>
+      <div class="card">
+        <h3>回台灣 · 賦歸</h3>
+        <p class="tagline">上野退房，前往成田搭機返台</p>
+        <ul class="plan">
+          <li><span class="ic">🧳</span><div>hotel MONday 退房<em><br>行李可先寄放櫃台，把握上午時間</em></div></li>
+          <li><span class="ic">🛍️</span><div>阿美橫町 / 上野最後採買伴手禮<em><br>藥妝、零食、名產</em></div></li>
+          <li><span class="ic">🚄</span><div>上野 → 成田機場<em><br>京成上野站搭 Skyliner，約 45 分直達</em></div></li>
+          <li><span class="ic">✈️</span><div>成田機場 → 台灣<em><br>建議起飛前 3 小時到機場</em></div></li>
+        </ul>
+        <div class="note">🧳 提醒：確認退稅、把液體與行動電源分類好；Skyliner 建議先在網路或京成上野站購票劃位。旅途平安！</div>
+      </div>
+    </article>
+
+  </div><!--/track-->
+
+  <footer>
+    <div class="hr"></div>
+    行程整理 · 2027 野沢温泉滑雪之旅<br>
+    晚餐按鈕：🗺 開啟 Google 地圖導航｜📞 撥號訂位｜📖 查菜單評價<br>
+    餐廳公休日已標註，可自由對調日期<br>
+    <span style="color:var(--ice-soft)">滑雪愉快，注意保暖 ❄️</span>
+  </footer>
+</div>
+
+<div id="maplb" class="lightbox" onclick="if(event.target.id==='maplb')closeMap()">
+  <div class="lb-bar">
+    <a href="https://github.com/rileyqyxlgrfqy4apc0f-spec/nozawa/blob/main/gelandemap2023-24_en.pdf" target="_blank" rel="noopener">↗ 原始 PDF</a>
+    <button onclick="closeMap()" aria-label="關閉">✕</button>
+  </div>
+  <div class="lb-scroll">
+    <img id="lbimg" src="nozawa-map.jpg" alt="野沢温泉スキー場 雪道圖" onclick="this.classList.toggle('zoomed')">
+  </div>
+  <div class="lb-tip">再點圖片可切換 220% 放大 · 手機可雙指縮放</div>
+</div>
+
+<script>
+  function openMap(){var b=document.getElementById('maplb');b.classList.add('open');document.body.style.overflow='hidden';}
+  function closeMap(){var b=document.getElementById('maplb');b.classList.remove('open');document.body.style.overflow='';var i=document.getElementById('lbimg');if(i)i.classList.remove('zoomed');}
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeMap();});
+</script>
+
+<script>
+  (function(){
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var snow = document.getElementById('snow'); if(!snow) return;
+    var flakes = ['❄','•','✳','·'];
+    for (var i=0;i<26;i++){
+      var s=document.createElement('span');
+      s.textContent=flakes[Math.floor(Math.random()*flakes.length)];
+      s.style.left=(Math.random()*100)+'%';
+      s.style.fontSize=(7+Math.random()*11)+'px';
+      s.style.animationDuration=(5+Math.random()*7)+'s';
+      s.style.animationDelay=(-Math.random()*8)+'s';
+      s.style.opacity=(0.25+Math.random()*0.5);
+      snow.appendChild(s);
+    }
+  })();
+</script>
+</body>
+</html>
