@@ -30,6 +30,7 @@
 
 import time
 import tempfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
@@ -52,8 +53,8 @@ BOOKINGS = [
 # ============================================================
 #  要開哪幾筆？(填 idx)  例：全部 = [0,1,2,3,4,5,6,7]
 # ============================================================
-WHICH_LIST = [0, 1, 2, 3, 4, 5, 6, 7]
-
+#WHICH_LIST = [0, 1, 2, 3, 4, 5, 6, 7]
+WHICH_LIST = [0, 1]
 # ============================================================
 #  測試模式：執行「python autofill.py -test」時，
 #  改用這筆「現在就能訂」的 9/8 方案，開 8 個視窗跑完整流程（含填表）。
@@ -286,37 +287,61 @@ def open_one(cfg):
     return driver, ok, contact
 
 
-def run(test=False):
+def _run_one(label, cfg):
+    """單一視窗完整流程；回傳 (label, driver_or_None, ok, contact, error_or_None)。"""
+    try:
+        driver, ok, contact = open_one(cfg)
+        return label, driver, ok, contact, None
+    except Exception as e:
+        return label, None, None, None, e
+
+
+def _report(label, ok, contact, err):
+    if err is not None:
+        print(f"   ❌ {label} 開啟失敗：{err}")
+        return
+    if not ok:
+        print(f"   ⚠️ {label} 這筆日期沒點到（可能未開放/月份沒切到），請看該視窗 Console(F12)")
+    elif not FILL_CONTACT:
+        print(f"   ✅ {label} 第一頁已填好")
+    elif contact == "filled":
+        print(f"   ✅ {label} 已填到訂房者資料頁（停在確認前，未送出）")
+    elif contact == "blocked":
+        print(f"   ✅ {label} 第一頁已填好；⚠️ 按不了下一步（多半尚未開放預約，8/1 才開），停在第一頁")
+    else:
+        print(f"   ✅ {label} 第一頁已填好；⚠️ 進到填表頁但填入時出錯，請手動檢查")
+
+
+def run(test=False, parallel=False):
     if test:
         jobs = [(f"test#{k}", dict(TEST_BOOKING)) for k in range(TEST_COUNT)]
-        print(f"🧪 測試模式：用 9/8 方案(917009) 開 {TEST_COUNT} 個視窗，跑完整流程（含填表）")
+        print(f"測試模式：用 9/8 方案(917009) 開 {TEST_COUNT} 個視窗，跑完整流程（含填表）")
     else:
         jobs = [(f"idx {i}", BOOKINGS[i]) for i in WHICH_LIST]
 
-    print(f"→ 準備開 {len(jobs)} 個視窗：")
+    print(f"→ 準備開 {len(jobs)} 個視窗（{'同時開' if parallel else '依序開'}）：")
     for label, cfg in jobs:
         print(f"   {label}: {cfg['name']}（方案 {cfg['plan']}）")
     print()
 
     drivers = []
-    for label, cfg in jobs:
-        print(f"→ 開視窗 {label}：{cfg['name']} …")
-        try:
-            driver, ok, contact = open_one(cfg)
-            drivers.append(driver)
-            if not ok:
-                print("   ⚠️ 這筆日期沒點到（可能未開放/月份沒切到），請看該視窗 Console(F12)")
-            elif not FILL_CONTACT:
-                print("   ✅ 第一頁已填好")
-            elif contact == "filled":
-                print("   ✅ 已填到訂房者資料頁（停在確認前，未送出）")
-            elif contact == "blocked":
-                print("   ✅ 第一頁已填好；⚠️ 按不了下一步（多半尚未開放預約，8/1 才開），停在第一頁")
-            else:
-                print("   ✅ 第一頁已填好；⚠️ 進到填表頁但填入時出錯，請手動檢查")
-        except Exception as e:
-            print(f"   ❌ 開啟失敗：{e}")
-        time.sleep(OPEN_GAP)
+    if parallel:
+        # 真正同時開：每個視窗各自一條執行緒，幾乎同時啟動/填表，不用排隊等前一個做完
+        with ThreadPoolExecutor(max_workers=len(jobs)) as ex:
+            futures = {ex.submit(_run_one, label, cfg): label for label, cfg in jobs}
+            for fut in as_completed(futures):
+                label, driver, ok, contact, err = fut.result()
+                if driver is not None:
+                    drivers.append(driver)
+                _report(label, ok, contact, err)
+    else:
+        for label, cfg in jobs:
+            print(f"→ 開視窗 {label}：{cfg['name']} …")
+            _, driver, ok, contact, err = _run_one(label, cfg)
+            if driver is not None:
+                drivers.append(driver)
+            _report(label, ok, contact, err)
+            time.sleep(OPEN_GAP)
 
     print("\n全部視窗已開好並留著。")
     if FILL_CONTACT:
@@ -334,4 +359,4 @@ if __name__ == "__main__":
         sys.stdout.reconfigure(encoding="utf-8")   # 避免日文/emoji 在 Windows 終端機編碼崩潰
     except Exception:
         pass
-    run(test=("-test" in sys.argv))
+    run(test=("-test" in sys.argv), parallel=("-all" in sys.argv))
