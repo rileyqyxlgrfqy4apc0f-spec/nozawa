@@ -43,11 +43,11 @@ BOOKINGS = [
     {"plan": "933391", "name": "7晚 1男1女",        "year": 2027, "month": 1, "day": 16, "nights": 7, "rooms": 1, "people": {"男性": 1, "女性": 1}},  # 0
     {"plan": "933391", "name": "6晚 1男1女",        "year": 2027, "month": 1, "day": 16, "nights": 6, "rooms": 1, "people": {"男性": 1, "女性": 1}},  # 1
     {"plan": "933392", "name": "7晚 3女",           "year": 2027, "month": 1, "day": 16, "nights": 7, "rooms": 1, "people": {"女性": 3}},              # 2
-    {"plan": "933392", "name": "7晚 2男",           "year": 2027, "month": 1, "day": 16, "nights": 7, "rooms": 1, "people": {"男性": 2}},              # 3
+    {"plan": "933389", "name": "7晚 2男",           "year": 2027, "month": 1, "day": 16, "nights": 7, "rooms": 1, "people": {"男性": 2}},              # 3
     {"plan": "933393", "name": "7晚 2男",           "year": 2027, "month": 1, "day": 16, "nights": 7, "rooms": 1, "people": {"男性": 2}},              # 4
     {"plan": "933389", "name": "5晚 1男1女",        "year": 2027, "month": 1, "day": 16, "nights": 5, "rooms": 1, "people": {"男性": 1, "女性": 1}},  # 5
     {"plan": "933389", "name": "5晚 1男",           "year": 2027, "month": 1, "day": 16, "nights": 5, "rooms": 1, "people": {"男性": 1}},              # 6
-    {"plan": "933389", "name": "6晚 2女 (1/17入住)", "year": 2027, "month": 1, "day": 17, "nights": 6, "rooms": 1, "people": {"女性": 2}},             # 7
+    {"plan": "933392", "name": "6晚 2女 (1/17入住)", "year": 2027, "month": 1, "day": 17, "nights": 6, "rooms": 1, "people": {"女性": 2}},             # 7
 ]
 
 # ============================================================
@@ -239,6 +239,34 @@ setEl(byId('request'), v.note);
 return true;
 """
 
+# 讀取 / 強制設定「市区町村郡/番地」欄位（不含事件觸發的讀取版本）
+JS_GET_ADDRESS = "var e=document.querySelector('[name=\"address1\"]'); return e?e.value:null;"
+JS_SET_ADDRESS = r"""
+var e=document.querySelector('[name="address1"]');
+if(!e) return false;
+e.value=arguments[0];
+['input','change','blur','keyup'].forEach(function(ev){e.dispatchEvent(new Event(ev,{bubbles:true}));});
+return true;
+"""
+
+
+def _force_address(driver, addr, tries=8, interval=0.5):
+    """填郵便番号後，網站會非同步自動帶出市区町村（例如「台東区台東」），
+    晚於我們填表的時間點才蓋掉完整地址，導致「3丁目41-7」被吃掉。
+    這裡持續盯著欄位，只要被蓋掉就重填，直到連續兩次都維持我們要的值才罷手。"""
+    stable = 0
+    for _ in range(tries):
+        cur = driver.execute_script(JS_GET_ADDRESS)
+        if cur != addr:
+            driver.execute_script(JS_SET_ADDRESS, addr)
+            stable = 0
+        else:
+            stable += 1
+            if stable >= 2:
+                return True
+        time.sleep(interval)
+    return driver.execute_script(JS_GET_ADDRESS) == addr
+
 
 def _fill_contact(driver):
     """點下一步→進到訂房者資料頁→填好資料，停在確認前。
@@ -251,6 +279,7 @@ def _fill_contact(driver):
     time.sleep(1.0)
     try:
         driver.execute_script(JS_FILL_FORM, GUEST)
+        _force_address(driver, GUEST["addr"])   # 對抗郵便番号觸發的非同步地址自動帶入
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         return "filled"
     except Exception:
