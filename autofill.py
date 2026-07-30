@@ -278,50 +278,107 @@ return true;
 """
 
 
-# 從「個人情報入力」頁往下一步（卡號欄位在送出這頁之後才出現）。
-# 白名單只點「確認 / 次へ / お支払」這類按鈕；黑名單擋掉「予約を確定 / 完了」，絕不會送出訂房。
+# 往「卡片輸入頁」推進一步。從個人情報頁到卡號通常要兩段：
+#   個人情報入力 →（確認/次へ）→ 予約内容確認頁 →（オンライン決済手続き）→ 卡號輸入頁
+# 白名單只點這些中間按鈕；黑名單擋掉任何會真的成立訂單/送出付款的字。
 JS_CLICK_NEXT = r"""
 var norm=function(s){return (s||'').replace(/\s/g,'');};
-var BAD=['予約を確定','確定する','を確定','完了','戻る','キャンセル','クリア','削除'];
-var GOOD=['確認画面','内容の確認','確認へ','確認する','次へ','進む','お支払','支払方法','クレジット'];
+var BAD=['予約する','予約を確定','を確定','確定','完了','送信','決定','実行','購入','支払う',
+         '戻る','キャンセル','クリア','削除','ログイン','会員登録'];
+var GOOD=['オンライン決済手続','決済手続','決済へ','決済画面','お支払方法','お支払いへ',
+          '確認画面','内容の確認','確認へ','確認する','次へ','進む'];
 var els=[].slice.call(document.querySelectorAll('button,input[type=submit],input[type=button],a'));
-for(var i=0;i<els.length;i++){
-  var el=els[i], t=norm(el.textContent||el.value||'');
-  if(!t || el.offsetParent===null || el.disabled) continue;
-  var bad=false, j;
-  for(j=0;j<BAD.length;j++){ if(t.indexOf(BAD[j])>=0){ bad=true; break; } }
-  if(bad) continue;
-  for(j=0;j<GOOD.length;j++){
-    if(t.indexOf(GOOD[j])>=0){ el.click(); return t.slice(0,40); }
+for(var g=0; g<GOOD.length; g++){          // 依白名單順序找：決済系優先，其次確認/次へ
+  for(var i=0;i<els.length;i++){
+    var el=els[i], t=norm(el.textContent||el.value||'');
+    if(!t || t.length>60 || el.offsetParent===null || el.disabled) continue;
+    var bad=false, j;
+    for(j=0;j<BAD.length;j++){ if(t.indexOf(BAD[j])>=0){ bad=true; break; } }
+    if(bad) continue;
+    if(t.indexOf(GOOD[g])>=0){ el.click(); return t.slice(0,40); }
   }
 }
 return null;
 """
 
-# 重填信用卡區塊（在卡片輸入頁；可能還在 render，所以要重試）；回傳目前欄位狀態
-JS_FILL_CARD = r"""
-var v=arguments[0];
+# 找/填信用卡欄位。不只認 id（那是大瀧站的），也用 name/autocomplete 與
+# 「カード番号 / カード名義 / セキュリティコード」等標籤找 —— 卡片頁是ホテペイ(タイムデザイン)的頁面，id 可能不同。
+JS_CARD_CORE = r"""
 var fire=function(el){ if(!el)return; ['input','change','blur','keyup'].forEach(function(ev){el.dispatchEvent(new Event(ev,{bubbles:true}));}); };
 var byId=function(id){return document.getElementById(id);};
+var fields=function(){ return [].slice.call(document.querySelectorAll('input,select')).filter(function(e){
+  return e.type!=='hidden' && e.type!=='submit' && e.type!=='button' && e.offsetParent!==null; }); };
+var byAttr=function(re){ var f=fields(), i; for(i=0;i<f.length;i++){
+  var s=(f[i].id||'')+' '+(f[i].name||'')+' '+(f[i].getAttribute('autocomplete')||'')+' '+(f[i].placeholder||'');
+  if(re.test(s)) return f[i]; } return null; };
+var byLabel=function(re){                 // 找文字命中的小容器，取裡面（或隔壁格）第一個欄位
+  var nodes=[].slice.call(document.querySelectorAll('tr,li,dd,dt,th,td,label,p,div')), i;
+  for(i=0;i<nodes.length;i++){
+    var n=nodes[i], txt=n.textContent||'';
+    if(txt.length>150 || !re.test(txt)) continue;
+    var f=n.querySelector('input:not([type=hidden]),select');
+    if(f) return f;
+    var sib=n.nextElementSibling;
+    if(sib && sib.querySelector){ f=sib.querySelector('input:not([type=hidden]),select'); if(f) return f; }
+  }
+  return null;
+};
+var setVal=function(el,val){               // input 直接填；select 試 value / 補零 / 選項文字
+  if(!el) return null;
+  var v=String(val);
+  if(el.tagName==='SELECT'){
+    var cands=[v, v.length===1?('0'+v):v, v.slice(-2)], opts=[].slice.call(el.options), i, k;
+    for(k=0;k<cands.length;k++){
+      for(i=0;i<opts.length;i++){
+        if(opts[i].value===cands[k] || (opts[i].textContent||'').replace(/\s/g,'')===cands[k]){
+          el.value=opts[i].value; fire(el); return el.value;
+        }
+      }
+    }
+    return el.value;
+  }
+  if(el.value!==v){ el.focus&&el.focus(); el.value=v; fire(el); }
+  return el.value;
+};
+var card={};
+card.no    = byId('inputCardNo')     || byAttr(/card.?(no|num|number)|cardno|cc-?number/i) || byLabel(/カード番号/);
+card.month = byId('inputExpMonth')   || byAttr(/exp.*month|month.*exp|cc-exp-month/i);
+card.year  = byId('inputExpYear')    || byAttr(/exp.*year|year.*exp|cc-exp-year/i);
+card.owner = byId('inputCardOwner')  || byAttr(/owner|holder|cc-?name|card.*name|name.*card/i) || byLabel(/カード名義|ご名義|名義人/);
+card.cvv   = byId('inputCvv2Code')   || byAttr(/cvv|cvc|security.?code|seccode/i) || byLabel(/セキュリティコード|セキュリティーコード/);
+"""
+
+JS_HAS_CARD = JS_CARD_CORE + "return !!card.no;"
+
+JS_FILL_CARD = JS_CARD_CORE + r"""
+var v=arguments[0];
 var credit=byId('payment_credit_hotepay');
 if(credit && !credit.checked){ credit.checked=true; credit.click(); fire(credit); }
-var no=byId('inputCardNo');  if(no && no.value!==v.card_no){ no.value=v.card_no; fire(no); }
-var em=byId('inputExpMonth'); if(em && String(em.value)!==String(v.card_exp_month)){ em.value=v.card_exp_month; fire(em); }
-var ey=byId('inputExpYear');  if(ey && String(ey.value)!==String(v.card_exp_year)){ ey.value=v.card_exp_year; fire(ey); }
-var ow=byId('inputCardOwner'); if(ow && ow.value!==v.card_owner){ ow.value=v.card_owner; fire(ow); }
-var cv=byId('inputCvv2Code'); if(cv && v.card_cvv && cv.value!==v.card_cvv){ cv.value=v.card_cvv; fire(cv); }
+var out={};
+out.no    = setVal(card.no,    v.card_no);
+out.month = setVal(card.month, v.card_exp_month);
+out.year  = setVal(card.year,  v.card_exp_year);
+out.owner = setVal(card.owner, v.card_owner);
+out.cvv   = v.card_cvv ? setVal(card.cvv, v.card_cvv) : null;
 var issuer=byId(v.card_overseas ? 'foreign_language' : 'japan_language');
 if(issuer && !issuer.checked){ issuer.checked=true; issuer.click(); fire(issuer); }
-return {radio: !!(credit && credit.checked),
-        no: no?no.value:null,
-        exp: em&&ey ? (em.value+'/'+ey.value) : null,
-        owner: ow?ow.value:null,
-        cvv: cv?cv.value:null};
+out.exp = (out.month||'') + '/' + (out.year||'');
+return out;
 """
 
 
+def _switch_newest(driver):
+    """按鈕若開新分頁（決済頁常這樣），切到最新那個。"""
+    try:
+        handles = driver.window_handles
+        if len(handles) > 1 and driver.current_window_handle != handles[-1]:
+            driver.switch_to.window(handles[-1])
+    except Exception:
+        pass
+
+
 def _force_card(driver, guest, tries=8, interval=0.5):
-    """在卡片輸入頁重填到卡號/名義真的進去為止（欄位可能還在 render）。
+    """在卡片輸入頁重填到卡號真的進去為止（欄位可能還在 render）。
     回傳最後一次的欄位狀態 dict（或 None）。"""
     state = None
     for _ in range(tries):
@@ -329,29 +386,33 @@ def _force_card(driver, guest, tries=8, interval=0.5):
             state = driver.execute_script(JS_FILL_CARD, guest)
         except Exception:
             state = None
-        if state and state.get("no") and state.get("owner"):
+        if state and state.get("no"):
             return state
         time.sleep(interval)
     return state
 
 
-def _goto_card_page(driver, guest):
-    """個人情報頁填好後，按「確認/次へ」送出這頁 → 等卡片輸入頁 → 填卡號。
-    回傳 (ok, 說明字串)。不會按「予約を確定する」。"""
-    # 有些方案卡號欄位就在同一頁，先試填一次，成功就不用送出
-    card = _force_card(driver, guest, tries=2, interval=0.3)
-    if card and card.get("no"):
-        return True, "同頁就有卡號欄位"
-    clicked = driver.execute_script(JS_CLICK_NEXT)
-    if not clicked:
-        return False, "找不到「確認/次へ」按鈕，沒送出"
-    # 等卡號欄位出現（若表單驗證沒過會停在原頁，就等不到）
-    if not _poll(driver, "return !!document.getElementById('inputCardNo');", 20):
-        return False, f"按了「{clicked}」但沒看到卡號欄位（可能有欄位驗證錯誤）"
-    card = _force_card(driver, guest)
-    if card and card.get("no"):
-        return True, f"按「{clicked}」進到卡片頁後填入"
-    return False, f"按「{clicked}」進到卡片頁，但卡號填不進去"
+def _goto_card_page(driver, guest, max_steps=3):
+    """個人情報頁填好後，一步一步往前推到卡片輸入頁（確認頁 → オンライン決済手続き），
+    每步都先看卡號欄位出現了沒；出現就填。回傳 (ok, 說明字串)。
+    只會點白名單的中間按鈕，不會按「予約を確定 / 決済実行」這類真正成立的按鈕。"""
+    steps = []
+    for _ in range(max_steps):
+        _switch_newest(driver)
+        if driver.execute_script(JS_HAS_CARD):          # 已經在卡片頁
+            card = _force_card(driver, guest)
+            path = " → ".join(steps) if steps else "同頁"
+            if card and card.get("no"):
+                return True, f"{path}，已填卡號 {card['no'][:4]}…／{card.get('exp')}"
+            return False, f"{path}：找到卡號欄位但填不進去"
+        clicked = driver.execute_script(JS_CLICK_NEXT)
+        if not clicked:
+            path = " → ".join(steps) if steps else "（沒按過任何按鈕）"
+            return False, f"{path} 之後找不到下一步按鈕"
+        steps.append(f"按「{clicked}」")
+        _poll(driver, "return document.readyState==='complete';", 20)
+        time.sleep(1.0)                                 # 讓下一頁的 JS 把欄位畫出來
+    return False, " → ".join(steps) + "：走了 %d 步還沒看到卡號欄位" % max_steps
 
 
 def _force_address(driver, addr, tries=8, interval=0.5):
