@@ -63,7 +63,7 @@ WHICH_LIST = [0, 1]
 TEST_BOOKING = {"plan": "917009", "name": "測試 9/8 7晚 1男1女", "year": 2026,
                 "month": 9, "day": 8, "nights": 7, "rooms": 1,
                 "people": {"男性": 1, "女性": 1}}
-TEST_COUNT = 8   # 測試模式要開幾個視窗
+TEST_COUNT = 1   # 測試模式要開幾個視窗
 
 OPEN_GAP = 1.5   # 每個視窗之間間隔幾秒開（避免同時猛戳伺服器）
 LOAD_WAIT = 12   # 等頁面畫好的「上限」秒數；畫好就會提早繼續，不會真的等滿
@@ -85,10 +85,15 @@ GUEST = {
     "pref": "東京都",                        # 都道府県
     "zip": "1100016",                       # 郵便番号（無橫線）
     "addr": "台東区台東3丁目41-7",            # 市区町村郡/番地
-    "tel": "886932791240",                  # 連絡先（主）
+    "tel": "0932791240",                  # 連絡先（主）
     "traffic": "1",                         # 当日交通手段：1=車 2=JR・電車 3=その他
     "checkin_h": "21", "checkin_m": "00",   # チェックイン予定時間
-    "payment": "on_site",                   # 付款：on_site=現地決済 / credit=信用卡事前決済
+    "payment": "on_site",                   # 優先選現地決済；若該方案沒有這個選項，自動改填下面的信用卡資料
+    "card_no": "00001111222233334444",      # ⚠️ 測試用假卡號
+    "card_exp_month": "1", "card_exp_year": "2033",   # 有効期限 01/33
+    "card_owner": "TSAI YICHEN",             # カード名義
+    "card_cvv": "123",                       # ⚠️ 測試用假安全碼
+    "card_overseas": True,                   # カード発行元：True=海外 / False=日本国内
     "note": ("13:00頃に成田空港へ到着予定です。そこからタクシーでホテルへ向かい、"
              "19:00頃到着予定です。到着が遅れる場合は、運転手より電話にてご連絡いたします。"),
 }
@@ -218,8 +223,21 @@ var fire=function(el){ if(!el)return; ['input','change','blur','keyup'].forEach(
 var byId=function(id){return document.getElementById(id);};
 var byName=function(n){return document.querySelector('[name="'+n+'"]');};
 var setEl=function(el,val){ if(!el) return false; el.value=val; fire(el); return true; };
-var pid = (v.payment==='on_site') ? 'payment_on_site' : 'payment_credit_hotepay';
-var pay=byId(pid); if(pay){ pay.checked=true; pay.click(); fire(pay); }
+// 優先選現地決済；若此方案沒有這個選項（只能刷卡），改選信用卡並填卡片資訊
+var onSite=byId('payment_on_site');
+if(onSite){
+  onSite.checked=true; onSite.click(); fire(onSite);
+} else {
+  var credit=byId('payment_credit_hotepay');
+  if(credit){ credit.checked=true; credit.click(); fire(credit); }
+  setEl(byId('inputCardNo'), v.card_no);
+  var em=byId('inputExpMonth'); if(em){ em.value=v.card_exp_month; fire(em); }
+  var ey=byId('inputExpYear'); if(ey){ ey.value=v.card_exp_year; fire(ey); }
+  setEl(byId('inputCardOwner'), v.card_owner);
+  if(v.card_cvv) setEl(byId('inputCvv2Code'), v.card_cvv);
+  var issuer=byId(v.card_overseas ? 'foreign_language' : 'japan_language');
+  if(issuer){ issuer.checked=true; issuer.click(); fire(issuer); }
+}
 setEl(byId('last_name'), v.last);
 setEl(byId('first_name'), v.first);
 setEl(byId('last_name_kana'), v.lastk);
