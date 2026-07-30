@@ -7,9 +7,12 @@
   * 每個視窗自動切月份、點日期、設好泊數 / 房數 / 男女人數
   * 全部開著讓你一個一個核對、結帳
 
+  * 冬プラン只能「クレジットカード事前決済」，所以會一路走
+    個人情報入力 →（確認）→ オンライン決済手続き → 卡片輸入頁，把卡片資料也填好
+
 它「不會」做什麼：
-  * 不會自動按「確認 / 送出」、不會自動填卡、不會自動付款
-    結帳請你自己在各視窗手動完成（而且建議一筆一筆做）。
+  * 不會按「予約を確定する」、不會送出付款
+    最後一步請你自己在各視窗核對後手動按（而且建議一筆一筆做）。
 
 為什麼用「獨立設定檔」：
   每個視窗各自一條連線，互不干擾。你在其中一個結帳，
@@ -64,9 +67,8 @@ TEST_BOOKING = {"plan": "917009", "name": "測試 9/8 7晚 1男1女", "year": 20
                 "month": 9, "day": 8, "nights": 7, "rooms": 1,
                 "people": {"男性": 1, "女性": 1}}
 TEST_COUNT = 1   # 測試模式要開幾個視窗
-# 測試模式要不要強制選「クレジットカード決済」並填下面 GUEST 裡的測試卡號？
-#   True  = 即使該方案有「現地決済」也強制改刷卡，把卡號/有効期限/名義/安全碼都填好（停在確認前，不送出）
-#   False = 跟正式模式一樣，優先選現地決済
+# 測試方案(9/8)「現地決済 或 刷卡」兩種都有，但冬プラン只有刷卡。
+# True = 測試時強制選刷卡，讓演練跟正式的按鈕/頁面流程完全一樣（オンライン決済手続き→卡片頁）
 TEST_FORCE_CREDIT = True
 
 OPEN_GAP = 1.5   # 每個視窗之間間隔幾秒開（避免同時猛戳伺服器）
@@ -80,8 +82,20 @@ LOAD_WAIT = 12   # 等頁面畫好的「上限」秒數；畫好就會提早繼�
 # ============================================================
 FILL_CONTACT = True
 
-# 執行期旗標：是否強制刷卡（正式模式 False；加 -test 時由 TEST_FORCE_CREDIT 決定）
+# ============================================================
+#  選到「クレジットカード事前決済」時，要不要自動按「オンライン決済手続き」
+#  進到卡片輸入頁並填好卡片資料？（冬プラン只有刷卡，所以正式跑也會走這條）
+#    True  = 一路填到卡片頁，停在「予約を確定する」之前（永遠不按確定）
+#    False = 停在個人情報頁，卡片頁自己手動走
+#  ⚠️ 開著就代表正式跑時 GUEST 裡的卡號必須是真卡，不然要在卡片頁手動改。
+# ============================================================
+FILL_CARD = True
+
+# 執行期旗標：是否強制刷卡（正式模式 False＝該方案有現地決済就用它；-test 時由 TEST_FORCE_CREDIT 決定）
 FORCE_CREDIT = False
+
+# 判斷用：GUEST["card_no"] 還是這串假卡號，就代表還沒換成真卡（正式模式會警告）
+FAKE_CARD_NO = "00001111222233334444"
 
 # 訂房者資料（8 筆共用；若某筆要不同，可自行改這裡再單獨跑那筆）
 GUEST = {
@@ -95,8 +109,8 @@ GUEST = {
     "tel": "0932791240",                  # 連絡先（主）
     "traffic": "1",                         # 当日交通手段：1=車 2=JR・電車 3=その他
     "checkin_h": "21", "checkin_m": "00",   # チェックイン予定時間
-    "payment": "on_site",                   # 優先選現地決済；若該方案沒有這個選項，自動改填下面的信用卡資料
-    "card_no": "00001111222233334444",      # ⚠️ 測試用假卡號
+    # 以下卡片資料：冬プラン只能刷卡，所以正式訂房前請把 card_no / 有効期限 / cvv 換成真卡
+    "card_no": "00001111222233334444",      # ⚠️ 目前是測試用假卡號
     "card_exp_month": "1", "card_exp_year": "2033",   # 有効期限 01/33
     "card_owner": "TSAI YICHEN",             # カード名義
     "card_cvv": "123",                       # ⚠️ 測試用假安全碼
@@ -230,16 +244,22 @@ var fire=function(el){ if(!el)return; ['input','change','blur','keyup'].forEach(
 var byId=function(id){return document.getElementById(id);};
 var byName=function(n){return document.querySelector('[name="'+n+'"]');};
 var setEl=function(el,val){ if(!el) return false; el.value=val; fire(el); return true; };
-// 付款方式：
-//   v.force_credit=true（測試模式）→ 強制選クレジットカード決済並填卡片資訊
-//   否則優先選現地決済；若此方案沒有這個選項（只能刷卡），才改選信用卡並填卡片資訊
+// 付款方式（決定後續按鈕長什麼樣，很重要）：
+//   現地決済  → 下一步就是「予約を確定する」（程式絕不按）
+//   クレジット → 下一步是「オンライン決済手続き」→ 卡片輸入頁
+// 冬プラン(1月那幾筆)只有クレジットカード事前決済，所以正式跑一定走刷卡路線。
+//   v.force_credit=true → 就算有現地決済也選刷卡（測試方案兩種都有，用這個對齊正式流程）
 var onSite=byId('payment_on_site');
 var credit=byId('payment_credit_hotepay');
-if(onSite && !v.force_credit){
-  onSite.checked=true; onSite.click(); fire(onSite);
-} else {
-  if(credit){ credit.checked=true; credit.click(); fire(credit); }
-  else if(onSite){ onSite.checked=true; onSite.click(); fire(onSite); }  // 沒有刷卡選項就退回現地決済
+var method='unknown';
+if(credit && (v.force_credit || !onSite)){
+  credit.checked=true; credit.click(); fire(credit); method='credit';
+} else if(onSite){
+  onSite.checked=true; onSite.click(); fire(onSite); method='on_site';
+} else if(credit){                       // 保險：只有刷卡選項
+  credit.checked=true; credit.click(); fire(credit); method='credit';
+}
+if(method==='credit'){                   // 少數方案卡號欄位就在這頁，有就順手填
   setEl(byId('inputCardNo'), v.card_no);
   var em=byId('inputExpMonth'); if(em){ em.value=v.card_exp_month; fire(em); }
   var ey=byId('inputExpYear'); if(ey){ ey.value=v.card_exp_year; fire(ey); }
@@ -264,7 +284,7 @@ var tt=byId('traffic_type'); if(tt){ tt.value=v.traffic; fire(tt); }
 var hh=byId('check_in_hour'); if(hh){ hh.value=v.checkin_h; fire(hh); }
 var mm=byId('check_in_minute'); if(mm){ mm.value=v.checkin_m; fire(mm); }
 setEl(byId('request'), v.note);
-return true;
+return method;   // 'credit' / 'on_site' / 'unknown' → Python 用它決定要不要往卡片頁走
 """
 
 # 讀取 / 強制設定「市区町村郡/番地」欄位（不含事件觸發的讀取版本）
@@ -434,9 +454,10 @@ def _force_address(driver, addr, tries=8, interval=0.5):
 
 
 def _fill_contact(driver):
-    """點下一步→進到訂房者資料頁→填好資料，停在確認前。
-    FORCE_CREDIT=True 時會多送出一次個人情報頁，到卡片輸入頁填卡號（仍不按確定）。
-    回傳 'filled' / 'filled_card:原因' / 'no_card:原因' /
+    """點下一步→進到訂房者資料頁→填好資料。
+    若付款方式是刷卡（冬プラン唯一選項）且 FILL_CARD=True，會再往前推到卡片輸入頁填卡號；
+    若是現地決済就停在個人情報頁（那條路的下一顆是「予約を確定する」，程式不碰）。
+    回傳 'filled' / 'filled_on_site' / 'filled_card:原因' / 'no_card:原因' /
          'blocked'(按不了下一步，多半是未開放) / 'error'。"""
     if not driver.execute_script(JS_CLICK_ESTIMATE):
         return "blocked"
@@ -446,15 +467,15 @@ def _fill_contact(driver):
     time.sleep(1.0)
     try:
         guest = dict(GUEST, force_credit=FORCE_CREDIT)
-        driver.execute_script(JS_FILL_FORM, guest)
+        method = driver.execute_script(JS_FILL_FORM, guest)   # 'credit' / 'on_site' / 'unknown'
         _force_address(driver, GUEST["addr"])   # 對抗郵便番号觸發的非同步地址自動帶入
-        if FORCE_CREDIT:
-            # 卡號欄位在送出個人情報頁之後的下一頁才出現
+        if method == "credit" and FILL_CARD:
+            # 刷卡路線：卡號欄位在「オンライン決済手続き」之後的頁面才出現
             ok, why = _goto_card_page(driver, guest)
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             return "filled_card:" + why if ok else "no_card:" + why
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        return "filled"
+        return "filled_on_site" if method == "on_site" else "filled"
     except Exception:
         return "error"
 
@@ -506,6 +527,8 @@ def _report(label, ok, contact, err):
         print(f"   ⚠️ {label} 這筆日期沒點到（可能未開放/月份沒切到），請看該視窗 Console(F12)")
     elif not FILL_CONTACT:
         print(f"   ✅ {label} 第一頁已填好")
+    elif contact == "filled_on_site":
+        print(f"   ✅ {label} 已填好訂房者資料，付款選『現地決済』；下一顆是「予約を確定する」，請自己按")
     elif contact == "filled":
         print(f"   ✅ {label} 已填到訂房者資料頁（停在確認前，未送出）")
     elif isinstance(contact, str) and contact.startswith("filled_card:"):
@@ -525,10 +548,14 @@ def run(test=False, parallel=False):
         jobs = [(f"test#{k}", dict(TEST_BOOKING)) for k in range(TEST_COUNT)]
         print(f"測試模式：用 9/8 方案(917009) 開 {TEST_COUNT} 個視窗，跑完整流程（含填表）")
         if FORCE_CREDIT:
-            print("　　付款方式：強制選『クレジットカード決済』，送出個人情報頁後在下一頁填入測試卡號")
-            print("　　⚠️ 只會按『確認/次へ』，不會按『予約を確定する』；卡號是假的，別自己按送出。")
+            print("　　付款方式：強制選『クレジットカード決済』，走到卡片頁填入測試卡號（對齊冬プラン流程）")
+            print("　　⚠️ 只會按『オンライン決済手続き / 確認 / 次へ』，不會按『予約を確定する』；卡號是假的，別自己按送出。")
     else:
         jobs = [(f"idx {i}", BOOKINGS[i]) for i in WHICH_LIST]
+        if FILL_CARD and GUEST["card_no"] == FAKE_CARD_NO:
+            print("⚠️⚠️ 正式模式，但 GUEST['card_no'] 還是測試假卡號 —— 冬プラン只能刷卡，")
+            print("　　卡片頁會被填進假卡。訂房前請把 card_no / 有効期限 / cvv 換成真卡，")
+            print("　　或把 FILL_CARD 改成 False（卡片頁自己手動填）。\n")
 
     print(f"→ 準備開 {len(jobs)} 個視窗（{'同時開' if parallel else '依序開'}）：")
     for label, cfg in jobs:
@@ -558,6 +585,9 @@ def run(test=False, parallel=False):
     if FILL_CONTACT and FORCE_CREDIT:
         print("測試模式：每個視窗應已到卡片輸入頁並填好測試卡號，停在『予約を確定する』之前。")
         print("這是演練，看完請直接關掉視窗，不要按確定。")
+    elif FILL_CONTACT and FILL_CARD:
+        print("刷卡方案（冬プラン）：視窗應已走到卡片輸入頁並填好卡片資料，停在『予約を確定する』之前。")
+        print("請逐一核對金額/日期/卡號後，再自行按『予約を確定する』。程式不會幫你按送出。")
     elif FILL_CONTACT:
         print("每個視窗應已填到『訂房者資料頁』並停在確認前。請逐一核對後，")
         print("再自行按『予約を確定する』送出。程式不會幫你按送出。")
