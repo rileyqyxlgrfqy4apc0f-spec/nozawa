@@ -64,6 +64,10 @@ TEST_BOOKING = {"plan": "917009", "name": "測試 9/8 7晚 1男1女", "year": 20
                 "month": 9, "day": 8, "nights": 7, "rooms": 1,
                 "people": {"男性": 1, "女性": 1}}
 TEST_COUNT = 1   # 測試模式要開幾個視窗
+# 測試模式要不要強制選「クレジットカード決済」並填下面 GUEST 裡的測試卡號？
+#   True  = 即使該方案有「現地決済」也強制改刷卡，把卡號/有効期限/名義/安全碼都填好（停在確認前，不送出）
+#   False = 跟正式模式一樣，優先選現地決済
+TEST_FORCE_CREDIT = True
 
 OPEN_GAP = 1.5   # 每個視窗之間間隔幾秒開（避免同時猛戳伺服器）
 LOAD_WAIT = 12   # 等頁面畫好的「上限」秒數；畫好就會提早繼續，不會真的等滿
@@ -75,6 +79,9 @@ LOAD_WAIT = 12   # 等頁面畫好的「上限」秒數；畫好就會提早繼�
 #  ⚠️ 1 月方案 2026/08/01 10:00 才開放；開放前按不了下一步，程式會自動停在第一頁。
 # ============================================================
 FILL_CONTACT = True
+
+# 執行期旗標：是否強制刷卡（正式模式 False；加 -test 時由 TEST_FORCE_CREDIT 決定）
+FORCE_CREDIT = False
 
 # 訂房者資料（8 筆共用；若某筆要不同，可自行改這裡再單獨跑那筆）
 GUEST = {
@@ -223,13 +230,16 @@ var fire=function(el){ if(!el)return; ['input','change','blur','keyup'].forEach(
 var byId=function(id){return document.getElementById(id);};
 var byName=function(n){return document.querySelector('[name="'+n+'"]');};
 var setEl=function(el,val){ if(!el) return false; el.value=val; fire(el); return true; };
-// 優先選現地決済；若此方案沒有這個選項（只能刷卡），改選信用卡並填卡片資訊
+// 付款方式：
+//   v.force_credit=true（測試模式）→ 強制選クレジットカード決済並填卡片資訊
+//   否則優先選現地決済；若此方案沒有這個選項（只能刷卡），才改選信用卡並填卡片資訊
 var onSite=byId('payment_on_site');
-if(onSite){
+var credit=byId('payment_credit_hotepay');
+if(onSite && !v.force_credit){
   onSite.checked=true; onSite.click(); fire(onSite);
 } else {
-  var credit=byId('payment_credit_hotepay');
   if(credit){ credit.checked=true; credit.click(); fire(credit); }
+  else if(onSite){ onSite.checked=true; onSite.click(); fire(onSite); }  // 沒有刷卡選項就退回現地決済
   setEl(byId('inputCardNo'), v.card_no);
   var em=byId('inputExpMonth'); if(em){ em.value=v.card_exp_month; fire(em); }
   var ey=byId('inputExpYear'); if(ey){ ey.value=v.card_exp_year; fire(ey); }
@@ -268,6 +278,44 @@ return true;
 """
 
 
+# 重填信用卡區塊（選了刷卡才會 render 出來，可能第一次撲空）；回傳目前欄位狀態
+JS_FILL_CARD = r"""
+var v=arguments[0];
+var fire=function(el){ if(!el)return; ['input','change','blur','keyup'].forEach(function(ev){el.dispatchEvent(new Event(ev,{bubbles:true}));}); };
+var byId=function(id){return document.getElementById(id);};
+var credit=byId('payment_credit_hotepay');
+if(credit && !credit.checked){ credit.checked=true; credit.click(); fire(credit); }
+var no=byId('inputCardNo');  if(no && no.value!==v.card_no){ no.value=v.card_no; fire(no); }
+var em=byId('inputExpMonth'); if(em && String(em.value)!==String(v.card_exp_month)){ em.value=v.card_exp_month; fire(em); }
+var ey=byId('inputExpYear');  if(ey && String(ey.value)!==String(v.card_exp_year)){ ey.value=v.card_exp_year; fire(ey); }
+var ow=byId('inputCardOwner'); if(ow && ow.value!==v.card_owner){ ow.value=v.card_owner; fire(ow); }
+var cv=byId('inputCvv2Code'); if(cv && v.card_cvv && cv.value!==v.card_cvv){ cv.value=v.card_cvv; fire(cv); }
+var issuer=byId(v.card_overseas ? 'foreign_language' : 'japan_language');
+if(issuer && !issuer.checked){ issuer.checked=true; issuer.click(); fire(issuer); }
+return {radio: !!(credit && credit.checked),
+        no: no?no.value:null,
+        exp: em&&ey ? (em.value+'/'+ey.value) : null,
+        owner: ow?ow.value:null,
+        cvv: cv?cv.value:null};
+"""
+
+
+def _force_card(driver, guest, tries=8, interval=0.5):
+    """信用卡欄位是「選了クレジットカード決済」之後才 render 出來的，
+    跟表單一起填時可能撲空；這裡重填到卡號/名義真的進去為止。
+    回傳最後一次的欄位狀態 dict（或 None）。"""
+    state = None
+    for _ in range(tries):
+        try:
+            state = driver.execute_script(JS_FILL_CARD, guest)
+        except Exception:
+            state = None
+        if state and state.get("radio") and state.get("no") and state.get("owner"):
+            return state
+        time.sleep(interval)
+    return state
+
+
 def _force_address(driver, addr, tries=8, interval=0.5):
     """填郵便番号後，網站會非同步自動帶出市区町村（例如「台東区台東」），
     晚於我們填表的時間點才蓋掉完整地址，導致「3丁目41-7」被吃掉。
@@ -296,8 +344,14 @@ def _fill_contact(driver):
         return "blocked"
     time.sleep(1.0)
     try:
-        driver.execute_script(JS_FILL_FORM, GUEST)
+        guest = dict(GUEST, force_credit=FORCE_CREDIT)
+        driver.execute_script(JS_FILL_FORM, guest)
         _force_address(driver, GUEST["addr"])   # 對抗郵便番号觸發的非同步地址自動帶入
+        if FORCE_CREDIT:
+            card = _force_card(driver, guest)   # 刷卡欄位是點了刷卡才出現，補填到進去為止
+            if not (card and card.get("radio") and card.get("no")):
+                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                return "no_card"
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         return "filled"
     except Exception:
@@ -352,7 +406,10 @@ def _report(label, ok, contact, err):
     elif not FILL_CONTACT:
         print(f"   ✅ {label} 第一頁已填好")
     elif contact == "filled":
-        print(f"   ✅ {label} 已填到訂房者資料頁（停在確認前，未送出）")
+        extra = "，付款已選信用卡並填好測試卡號" if FORCE_CREDIT else ""
+        print(f"   ✅ {label} 已填到訂房者資料頁（停在確認前，未送出）{extra}")
+    elif contact == "no_card":
+        print(f"   ✅ {label} 已填到訂房者資料頁；⚠️ 但找不到刷卡選項/卡號欄位（此方案可能只有現地決済），請看該視窗")
     elif contact == "blocked":
         print(f"   ✅ {label} 第一頁已填好；⚠️ 按不了下一步（多半尚未開放預約，8/1 才開），停在第一頁")
     else:
@@ -360,9 +417,14 @@ def _report(label, ok, contact, err):
 
 
 def run(test=False, parallel=False):
+    global FORCE_CREDIT
     if test:
+        FORCE_CREDIT = TEST_FORCE_CREDIT
         jobs = [(f"test#{k}", dict(TEST_BOOKING)) for k in range(TEST_COUNT)]
         print(f"測試模式：用 9/8 方案(917009) 開 {TEST_COUNT} 個視窗，跑完整流程（含填表）")
+        if FORCE_CREDIT:
+            print("　　付款方式：強制選『クレジットカード決済』並填入 GUEST 裡的測試卡號")
+            print("　　⚠️ 卡號是假的，只驗證欄位能填；絕對不要按送出。")
     else:
         jobs = [(f"idx {i}", BOOKINGS[i]) for i in WHICH_LIST]
 
