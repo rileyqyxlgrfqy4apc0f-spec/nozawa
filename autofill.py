@@ -9,6 +9,8 @@
 
   * 冬プラン只能「クレジットカード事前決済」，所以會一路走
     個人情報入力 →（確認）→ オンライン決済手続き → 卡片輸入頁，把卡片資料也填好
+  * 最後那頁的「取引条件説明書面…承諾します／個人情報の取り扱いに同意します」兩個必勾項也會勾好
+    （只勾含承諾/同意的；含「希望/メルマガ/配信」的行銷選項不動）
 
 它「不會」做什麼：
   * 不會按「予約を確定する」、不會送出付款
@@ -249,14 +251,27 @@ var setEl=function(el,val){ if(!el) return false; el.value=val; fire(el); return
 //   クレジット → 下一步是「オンライン決済手続き」→ 卡片輸入頁
 // 冬プラン(1月那幾筆)只有クレジットカード事前決済，所以正式跑一定走刷卡路線。
 //   v.force_credit=true → 就算有現地決済也選刷卡（測試方案兩種都有，用這個對齊正式流程）
-var onSite=byId('payment_on_site');
-var credit=byId('payment_credit_hotepay');
-var method='unknown';
-if(credit && (v.force_credit || !onSite)){
-  credit.checked=true; credit.click(); fire(credit); method='credit';
-} else if(onSite){
+// 找付款方式的 radio：先用大瀧站的 id，抓不到就用選項旁的文字找（換版/不同方案也認得）
+var radioByText=function(re, notRe){
+  var rs=[].slice.call(document.querySelectorAll('input[type=radio]')), i, t, l, p, hop;
+  for(i=0;i<rs.length;i++){
+    t=''; hop=0;
+    if(rs[i].id){ try{ l=document.querySelector('label[for="'+rs[i].id+'"]'); }catch(e){ l=null; } if(l) t+=l.textContent; }
+    l=rs[i].closest('label'); if(l) t+=l.textContent;
+    p=rs[i].parentElement;
+    while(p && hop<3 && t.replace(/\s/g,'').length<6){ t+=p.textContent; p=p.parentElement; hop++; }
+    if(notRe && notRe.test(t)) continue;
+    if(re.test(t)) return rs[i];
+  }
+  return null;
+};
+var onSite=byId('payment_on_site')        || radioByText(/現地決済|現地でお支払|現地払/, null);
+var credit=byId('payment_credit_hotepay') || radioByText(/オンライン決済|事前決済|クレジット/, /現地/);
+// 預設就是 'credit'：冬プラン沒有現地決済選項，甚至可能連 radio 都不畫，直接走刷卡路線
+var method='credit';
+if(onSite && !v.force_credit){
   onSite.checked=true; onSite.click(); fire(onSite); method='on_site';
-} else if(credit){                       // 保險：只有刷卡選項
+} else if(credit){
   credit.checked=true; credit.click(); fire(credit); method='credit';
 }
 if(method==='credit'){                   // 少數方案卡號欄位就在這頁，有就順手填
@@ -387,6 +402,56 @@ return out;
 """
 
 
+# 勾「取引条件説明書面…承諾します」「個人情報の取り扱いについて同意します」這類必勾項。
+# 只勾含『承諾/同意/了承/確認しました』的；含『希望/メルマガ/配信/受け取』的行銷選項一律不動。
+JS_CHECK_AGREE = r"""
+var GOOD=/承諾|同意|了承|確認しました/;
+var BAD=/希望|メルマガ|メールマガジン|配信|受け取|登録する|割引/;
+function labelText(cb){
+  var t='', l, p, hop=0;
+  if(cb.id){ try{ l=document.querySelector('label[for="'+cb.id+'"]'); }catch(e){ l=null; } if(l) t+=l.textContent+' '; }
+  l=cb.closest('label'); if(l) t+=l.textContent+' ';
+  p=cb.parentElement;
+  while(p && hop<3 && t.replace(/\s/g,'').length<6){ t+=p.textContent+' '; p=p.parentElement; hop++; }
+  return t.replace(/\s+/g,' ').trim();
+}
+var out=[];
+var cbs=[].slice.call(document.querySelectorAll('input[type=checkbox]'));
+for(var i=0;i<cbs.length;i++){
+  var cb=cbs[i];
+  if(cb.offsetParent===null || cb.disabled) continue;
+  var txt=labelText(cb);
+  if(!GOOD.test(txt) || BAD.test(txt)) continue;
+  if(!cb.checked){
+    cb.click();                                   // 先用原生 click（會帶動網站自己的 handler）
+    if(!cb.checked){                              // 沒生效再硬設
+      cb.checked=true;
+      cb.dispatchEvent(new Event('click',{bubbles:true}));
+      cb.dispatchEvent(new Event('change',{bubbles:true}));
+    }
+  }
+  out.push({label: txt.slice(0,24), ok: cb.checked});
+}
+return out;
+"""
+
+
+def _check_agreements(driver, tries=3, interval=0.4):
+    """勾同意欄（可能晚一點才 render，所以重試幾次）。回傳 (已勾數, 總數)。"""
+    best = []
+    for _ in range(tries):
+        try:
+            res = driver.execute_script(JS_CHECK_AGREE) or []
+        except Exception:
+            res = []
+        if len(res) > len(best):
+            best = res
+        if best and all(x.get("ok") for x in best):
+            break
+        time.sleep(interval)
+    return sum(1 for x in best if x.get("ok")), len(best)
+
+
 def _switch_newest(driver):
     """按鈕若開新分頁（決済頁常這樣），切到最新那個。"""
     try:
@@ -472,8 +537,12 @@ def _fill_contact(driver):
         if method == "credit" and FILL_CARD:
             # 刷卡路線：卡號欄位在「オンライン決済手続き」之後的頁面才出現
             ok, why = _goto_card_page(driver, guest)
+            done, total = _check_agreements(driver)   # 順手勾「承諾/同意」必勾項
+            if total:
+                why += f"，同意欄已勾 {done}/{total}"
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             return "filled_card:" + why if ok else "no_card:" + why
+        _check_agreements(driver)
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         return "filled_on_site" if method == "on_site" else "filled"
     except Exception:
