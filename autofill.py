@@ -278,7 +278,27 @@ return true;
 """
 
 
-# 重填信用卡區塊（選了刷卡才會 render 出來，可能第一次撲空）；回傳目前欄位狀態
+# 從「個人情報入力」頁往下一步（卡號欄位在送出這頁之後才出現）。
+# 白名單只點「確認 / 次へ / お支払」這類按鈕；黑名單擋掉「予約を確定 / 完了」，絕不會送出訂房。
+JS_CLICK_NEXT = r"""
+var norm=function(s){return (s||'').replace(/\s/g,'');};
+var BAD=['予約を確定','確定する','を確定','完了','戻る','キャンセル','クリア','削除'];
+var GOOD=['確認画面','内容の確認','確認へ','確認する','次へ','進む','お支払','支払方法','クレジット'];
+var els=[].slice.call(document.querySelectorAll('button,input[type=submit],input[type=button],a'));
+for(var i=0;i<els.length;i++){
+  var el=els[i], t=norm(el.textContent||el.value||'');
+  if(!t || el.offsetParent===null || el.disabled) continue;
+  var bad=false, j;
+  for(j=0;j<BAD.length;j++){ if(t.indexOf(BAD[j])>=0){ bad=true; break; } }
+  if(bad) continue;
+  for(j=0;j<GOOD.length;j++){
+    if(t.indexOf(GOOD[j])>=0){ el.click(); return t.slice(0,40); }
+  }
+}
+return null;
+"""
+
+# 重填信用卡區塊（在卡片輸入頁；可能還在 render，所以要重試）；回傳目前欄位狀態
 JS_FILL_CARD = r"""
 var v=arguments[0];
 var fire=function(el){ if(!el)return; ['input','change','blur','keyup'].forEach(function(ev){el.dispatchEvent(new Event(ev,{bubbles:true}));}); };
@@ -301,8 +321,7 @@ return {radio: !!(credit && credit.checked),
 
 
 def _force_card(driver, guest, tries=8, interval=0.5):
-    """信用卡欄位是「選了クレジットカード決済」之後才 render 出來的，
-    跟表單一起填時可能撲空；這裡重填到卡號/名義真的進去為止。
+    """在卡片輸入頁重填到卡號/名義真的進去為止（欄位可能還在 render）。
     回傳最後一次的欄位狀態 dict（或 None）。"""
     state = None
     for _ in range(tries):
@@ -310,10 +329,29 @@ def _force_card(driver, guest, tries=8, interval=0.5):
             state = driver.execute_script(JS_FILL_CARD, guest)
         except Exception:
             state = None
-        if state and state.get("radio") and state.get("no") and state.get("owner"):
+        if state and state.get("no") and state.get("owner"):
             return state
         time.sleep(interval)
     return state
+
+
+def _goto_card_page(driver, guest):
+    """個人情報頁填好後，按「確認/次へ」送出這頁 → 等卡片輸入頁 → 填卡號。
+    回傳 (ok, 說明字串)。不會按「予約を確定する」。"""
+    # 有些方案卡號欄位就在同一頁，先試填一次，成功就不用送出
+    card = _force_card(driver, guest, tries=2, interval=0.3)
+    if card and card.get("no"):
+        return True, "同頁就有卡號欄位"
+    clicked = driver.execute_script(JS_CLICK_NEXT)
+    if not clicked:
+        return False, "找不到「確認/次へ」按鈕，沒送出"
+    # 等卡號欄位出現（若表單驗證沒過會停在原頁，就等不到）
+    if not _poll(driver, "return !!document.getElementById('inputCardNo');", 20):
+        return False, f"按了「{clicked}」但沒看到卡號欄位（可能有欄位驗證錯誤）"
+    card = _force_card(driver, guest)
+    if card and card.get("no"):
+        return True, f"按「{clicked}」進到卡片頁後填入"
+    return False, f"按「{clicked}」進到卡片頁，但卡號填不進去"
 
 
 def _force_address(driver, addr, tries=8, interval=0.5):
@@ -336,7 +374,9 @@ def _force_address(driver, addr, tries=8, interval=0.5):
 
 def _fill_contact(driver):
     """點下一步→進到訂房者資料頁→填好資料，停在確認前。
-    回傳 'filled' / 'blocked'(按不了下一步，多半是未開放) / 'error'。"""
+    FORCE_CREDIT=True 時會多送出一次個人情報頁，到卡片輸入頁填卡號（仍不按確定）。
+    回傳 'filled' / 'filled_card:原因' / 'no_card:原因' /
+         'blocked'(按不了下一步，多半是未開放) / 'error'。"""
     if not driver.execute_script(JS_CLICK_ESTIMATE):
         return "blocked"
     reached = _poll(driver, "return !!document.getElementById('last_name');", 15)
@@ -348,10 +388,10 @@ def _fill_contact(driver):
         driver.execute_script(JS_FILL_FORM, guest)
         _force_address(driver, GUEST["addr"])   # 對抗郵便番号觸發的非同步地址自動帶入
         if FORCE_CREDIT:
-            card = _force_card(driver, guest)   # 刷卡欄位是點了刷卡才出現，補填到進去為止
-            if not (card and card.get("radio") and card.get("no")):
-                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                return "no_card"
+            # 卡號欄位在送出個人情報頁之後的下一頁才出現
+            ok, why = _goto_card_page(driver, guest)
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            return "filled_card:" + why if ok else "no_card:" + why
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         return "filled"
     except Exception:
@@ -406,10 +446,11 @@ def _report(label, ok, contact, err):
     elif not FILL_CONTACT:
         print(f"   ✅ {label} 第一頁已填好")
     elif contact == "filled":
-        extra = "，付款已選信用卡並填好測試卡號" if FORCE_CREDIT else ""
-        print(f"   ✅ {label} 已填到訂房者資料頁（停在確認前，未送出）{extra}")
-    elif contact == "no_card":
-        print(f"   ✅ {label} 已填到訂房者資料頁；⚠️ 但找不到刷卡選項/卡號欄位（此方案可能只有現地決済），請看該視窗")
+        print(f"   ✅ {label} 已填到訂房者資料頁（停在確認前，未送出）")
+    elif isinstance(contact, str) and contact.startswith("filled_card:"):
+        print(f"   ✅ {label} 已選信用卡並填好測試卡號（{contact.split(':',1)[1]}）；停在確定前，未送出")
+    elif isinstance(contact, str) and contact.startswith("no_card:"):
+        print(f"   ✅ {label} 訂房者資料已填好；⚠️ 卡號沒填成功：{contact.split(':',1)[1]}，請看該視窗手動處理")
     elif contact == "blocked":
         print(f"   ✅ {label} 第一頁已填好；⚠️ 按不了下一步（多半尚未開放預約，8/1 才開），停在第一頁")
     else:
@@ -423,8 +464,8 @@ def run(test=False, parallel=False):
         jobs = [(f"test#{k}", dict(TEST_BOOKING)) for k in range(TEST_COUNT)]
         print(f"測試模式：用 9/8 方案(917009) 開 {TEST_COUNT} 個視窗，跑完整流程（含填表）")
         if FORCE_CREDIT:
-            print("　　付款方式：強制選『クレジットカード決済』並填入 GUEST 裡的測試卡號")
-            print("　　⚠️ 卡號是假的，只驗證欄位能填；絕對不要按送出。")
+            print("　　付款方式：強制選『クレジットカード決済』，送出個人情報頁後在下一頁填入測試卡號")
+            print("　　⚠️ 只會按『確認/次へ』，不會按『予約を確定する』；卡號是假的，別自己按送出。")
     else:
         jobs = [(f"idx {i}", BOOKINGS[i]) for i in WHICH_LIST]
 
@@ -453,7 +494,10 @@ def run(test=False, parallel=False):
             time.sleep(OPEN_GAP)
 
     print("\n全部視窗已開好並留著。")
-    if FILL_CONTACT:
+    if FILL_CONTACT and FORCE_CREDIT:
+        print("測試模式：每個視窗應已到卡片輸入頁並填好測試卡號，停在『予約を確定する』之前。")
+        print("這是演練，看完請直接關掉視窗，不要按確定。")
+    elif FILL_CONTACT:
         print("每個視窗應已填到『訂房者資料頁』並停在確認前。請逐一核對後，")
         print("再自行按『予約を確定する』送出。程式不會幫你按送出。")
     else:
