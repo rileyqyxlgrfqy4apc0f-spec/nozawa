@@ -214,9 +214,12 @@ function setSelect(sel,val){
 """
 
 
-def _poll(driver, js, max_wait, step=0.2):
-    """每 step 秒問一次 js；一有結果(非 None/非 False)就回傳，最多等 max_wait 秒。"""
+def _poll(driver, js, max_wait, step=0.2, bail_expired=True):
+    """每 step 秒問一次 js；一有結果(非 None/非 False)就回傳，最多等 max_wait 秒。
+    bail_expired=True 時會順便盯著「接続を切りました」錯誤頁，一出現就馬上放棄
+    （不然會把 15/25 秒的上限白等完，重跑才開始）。"""
     end = time.time() + max_wait
+    n = 0
     while time.time() < end:
         try:
             v = driver.execute_script(js)
@@ -224,6 +227,9 @@ def _poll(driver, js, max_wait, step=0.2):
                 return v
         except Exception:
             pass
+        n += 1
+        if bail_expired and n % 4 == 0 and _expired(driver):
+            return None
         time.sleep(step)
     return None
 
@@ -484,19 +490,40 @@ def _goto_card_page(driver, guest, max_steps=3):
     steps = []
     for _ in range(max_steps):
         _switch_newest(driver)
+        path = " → ".join(steps) if steps else "同頁"
+        if _expired(driver):        # 錯誤/逾時頁：絕對不能再按，會越按越糟
+            return False, f"{path} 之後撞到『接続を切りました』錯誤頁"
         if driver.execute_script(JS_HAS_CARD):          # 已經在卡片頁
             card = _force_card(driver, guest)
-            path = " → ".join(steps) if steps else "同頁"
             if card and card.get("no"):
                 return True, f"{path}，已填卡號 {card['no'][:4]}…／{card.get('exp')}"
             return False, f"{path}：找到卡號欄位但填不進去"
+        before = driver.execute_script("return location.href;")
         clicked = driver.execute_script(JS_CLICK_NEXT)
         if not clicked:
-            path = " → ".join(steps) if steps else "（沒按過任何按鈕）"
             return False, f"{path} 之後找不到下一步按鈕"
         steps.append(f"按「{clicked}」")
+        # 關鍵：等到「網址真的換了」或「卡號欄位出現」才算這一步完成。
+        # 只等 readyState 的話，慢頁/AJAX 會讓下一圈又按同一顆 → 重複送出 → 被伺服器切線。
+        moved, end, n = None, time.time() + 25, 0
+        while time.time() < end:
+            try:
+                _switch_newest(driver)
+                if driver.execute_script(
+                        "return location.href!==arguments[0];", before) or \
+                   driver.execute_script(JS_HAS_CARD):
+                    moved = True
+                    break
+            except Exception:
+                pass                       # 換頁中 execute_script 可能短暫失敗
+            n += 1
+            if n % 3 == 0 and _expired(driver):   # 錯誤頁：立刻回報，不等滿 25 秒
+                return False, " → ".join(steps) + " 之後撞到『接続を切りました』錯誤頁"
+            time.sleep(0.3)
+        if not moved:                       # 頁面沒動就不再按第二次（避免重複送出）
+            return False, " → ".join(steps) + "：按了但頁面沒換，已停手（不重複按，免得被伺服器切線）"
         _poll(driver, "return document.readyState==='complete';", 20)
-        time.sleep(1.0)                                 # 讓下一頁的 JS 把欄位畫出來
+        time.sleep(0.8)                                 # 讓下一頁的 JS 把欄位畫出來
     return False, " → ".join(steps) + "：走了 %d 步還沒看到卡號欄位" % max_steps
 
 
@@ -528,7 +555,7 @@ def _fill_contact(driver):
         return "blocked"
     reached = _poll(driver, "return !!document.getElementById('last_name');", 15)
     if not reached:
-        return "blocked"
+        return "expired:按お見積り之後就是錯誤頁" if _expired(driver) else "blocked"
     time.sleep(1.0)
     try:
         guest = dict(GUEST, force_credit=FORCE_CREDIT)
@@ -549,14 +576,22 @@ def _fill_contact(driver):
         return "error"
 
 
-def open_one(cfg):
-    """開一個獨立的 Chrome，填好一筆，回傳 (driver, ok, contact)。"""
-    profile = tempfile.mkdtemp(prefix="otaki_")
-    opts = Options()
-    opts.add_argument(f"--user-data-dir={profile}")   # 每個視窗獨立設定檔＝獨立連線
-    opts.add_experimental_option("detach", True)
-    opts.add_argument("--window-size=1250,1000")
-    driver = webdriver.Chrome(options=opts)
+# 偵測「一定時間操作がありませんでしたので、安全のために接続を切りました」這種 session 逾時頁
+JS_IS_EXPIRED = r"""
+var t=(document.body?document.body.innerText:'')||'';
+return /接続を切りました|一定時間操作がありません|セッション.{0,4}(切れ|タイムアウト)|時間切れ/.test(t);
+"""
+
+
+def _expired(driver):
+    try:
+        return bool(driver.execute_script(JS_IS_EXPIRED))
+    except Exception:
+        return False
+
+
+def _fill_flow(driver, cfg):
+    """在既有的 driver 上跑一輪完整填表；回傳 (ok, contact)。"""
     driver.get(BASE + cfg["plan"])
     # 等頁面畫好（日曆表格出現）就繼續，不再死等固定秒數
     _poll(driver,
@@ -565,24 +600,57 @@ def open_one(cfg):
     driver.execute_script("window.__otaki_ok=undefined;")
     driver.execute_script(JS_FILL, cfg)
     # 等 JS 回報完成旗標就繼續：true=成功、false=沒點到日期，都算「有結果」即停
-    ok, end = None, time.time() + 16
+    ok, end, n = None, time.time() + 16, 0
     while time.time() < end:
-        v = driver.execute_script("return window.__otaki_ok;")
+        try:
+            v = driver.execute_script("return window.__otaki_ok;")
+        except Exception:
+            v = None
         if v is not None:
             ok = v
+            break
+        n += 1
+        if n % 4 == 0 and _expired(driver):   # 錯誤頁就別等滿 16 秒了
             break
         time.sleep(0.2)
     # 第一頁填好了、且開啟自動填表 → 進到訂房者資料頁填好
     contact = None
     if ok and FILL_CONTACT:
         contact = _fill_contact(driver)
-    return driver, ok, contact
+    return ok, contact
+
+
+def open_one(cfg, retries=1, label=""):
+    """開一個獨立的 Chrome，填好一筆，回傳 (driver, ok, contact)。
+    途中若撞到「接続を切りました」錯誤頁，清 cookie 重跑（最多 retries 次）。"""
+    profile = tempfile.mkdtemp(prefix="otaki_")
+    opts = Options()
+    opts.add_argument(f"--user-data-dir={profile}")   # 每個視窗獨立設定檔＝獨立連線
+    opts.add_experimental_option("detach", True)
+    opts.add_argument("--window-size=1250,1000")
+    driver = webdriver.Chrome(options=opts)
+    ok = contact = None
+    for attempt in range(retries + 1):
+        ok, contact = _fill_flow(driver, cfg)
+        if not _expired(driver):
+            return driver, ok, contact
+        if isinstance(contact, str) and contact.startswith(("no_card:", "expired:")):
+            contact = "expired:" + contact.split(":", 1)[1]    # 保留死在哪一步的線索
+        if attempt < retries:
+            print(f"   ↻ {label} 撞到『接続を切りました』→ 清 cookie 重跑（第 {attempt + 2} 次）…")
+            try:
+                driver.delete_all_cookies()   # 舊 session 已被伺服器切掉，換一條乾淨的
+            except Exception:
+                pass
+            time.sleep(0.3)
+    detail = contact.split(":", 1)[1] if isinstance(contact, str) and ":" in contact else "不確定死在哪一步"
+    return driver, ok, f"expired:{detail}（重試 {retries} 次都一樣）"
 
 
 def _run_one(label, cfg):
     """單一視窗完整流程；回傳 (label, driver_or_None, ok, contact, error_or_None)。"""
     try:
-        driver, ok, contact = open_one(cfg)
+        driver, ok, contact = open_one(cfg, label=label)
         return label, driver, ok, contact, None
     except Exception as e:
         return label, None, None, None, e
@@ -596,6 +664,9 @@ def _report(label, ok, contact, err):
         print(f"   ⚠️ {label} 這筆日期沒點到（可能未開放/月份沒切到），請看該視窗 Console(F12)")
     elif not FILL_CONTACT:
         print(f"   ✅ {label} 第一頁已填好")
+    elif isinstance(contact, str) and contact.startswith("expired:"):
+        print(f"   ⚠️ {label} 撞到『接続を切りました』錯誤頁：{contact.split(':',1)[1]}")
+        print(f"      → 多半是同一步被送出兩次或 session 失效。這個視窗要重跑（先關掉它）")
     elif contact == "filled_on_site":
         print(f"   ✅ {label} 已填好訂房者資料，付款選『現地決済』；下一顆是「予約を確定する」，請自己按")
     elif contact == "filled":
