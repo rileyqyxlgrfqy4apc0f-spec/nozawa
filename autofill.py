@@ -51,7 +51,7 @@ BOOKINGS = [
     {"plan": "933389", "name": "7晚 2男",           "year": 2027, "month": 1, "day": 16, "nights": 7, "rooms": 1, "people": {"男性": 2}},              # 3
     {"plan": "933393", "name": "7晚 2男",           "year": 2027, "month": 1, "day": 16, "nights": 7, "rooms": 1, "people": {"男性": 2}},              # 4
     {"plan": "933389", "name": "5晚 1男1女",        "year": 2027, "month": 1, "day": 16, "nights": 5, "rooms": 1, "people": {"男性": 1, "女性": 1}},  # 5
-    {"plan": "933389", "name": "5晚 1男",           "year": 2027, "month": 1, "day": 16, "nights": 5, "rooms": 1, "people": {"男性": 1}},              # 6
+    {"plan": "933390", "name": "5晚 1男",           "year": 2027, "month": 1, "day": 17, "nights": 5, "rooms": 1, "people": {"男性": 1}},              # 6
     {"plan": "933392", "name": "6晚 2女 (1/17入住)", "year": 2027, "month": 1, "day": 17, "nights": 6, "rooms": 1, "people": {"女性": 2}},             # 7
 ]
 
@@ -59,7 +59,7 @@ BOOKINGS = [
 #  要開哪幾筆？(填 idx)  例：全部 = [0,1,2,3,4,5,6,7]
 # ============================================================
 #WHICH_LIST = [0, 1, 2, 3, 4, 5, 6, 7]
-WHICH_LIST = [0, 1]
+WHICH_LIST = [6]
 # ============================================================
 #  測試模式：執行「python autofill.py -test」時，
 #  改用這筆「現在就能訂」的 9/8 方案，開 8 個視窗跑完整流程（含填表）。
@@ -93,8 +93,9 @@ FILL_CONTACT = True
 # ============================================================
 FILL_CARD = True
 
-# 執行期旗標：是否強制刷卡（正式模式 False＝該方案有現地決済就用它；-test 時由 TEST_FORCE_CREDIT 決定）
-FORCE_CREDIT = False
+# 是否強制刷卡。冬プラン只有「クレジットカード事前決済」，所以預設 True：
+# 不再去猜有沒有現地決済，一律選信用卡（避免把 radio 判斷錯而選成現地決済）。
+FORCE_CREDIT = True
 
 # 判斷用：GUEST["card_no"] 還是這串假卡號，就代表還沒換成真卡（正式模式會警告）
 FAKE_CARD_NO = "00001111222233334444"
@@ -257,28 +258,32 @@ var setEl=function(el,val){ if(!el) return false; el.value=val; fire(el); return
 //   クレジット → 下一步是「オンライン決済手続き」→ 卡片輸入頁
 // 冬プラン(1月那幾筆)只有クレジットカード事前決済，所以正式跑一定走刷卡路線。
 //   v.force_credit=true → 就算有現地決済也選刷卡（測試方案兩種都有，用這個對齊正式流程）
-// 找付款方式的 radio：先用大瀧站的 id，抓不到就用選項旁的文字找（換版/不同方案也認得）
-var radioByText=function(re, notRe){
-  var rs=[].slice.call(document.querySelectorAll('input[type=radio]')), i, t, l, p, hop;
-  for(i=0;i<rs.length;i++){
-    t=''; hop=0;
-    if(rs[i].id){ try{ l=document.querySelector('label[for="'+rs[i].id+'"]'); }catch(e){ l=null; } if(l) t+=l.textContent; }
-    l=rs[i].closest('label'); if(l) t+=l.textContent;
-    p=rs[i].parentElement;
-    while(p && hop<3 && t.replace(/\s/g,'').length<6){ t+=p.textContent; p=p.parentElement; hop++; }
-    if(notRe && notRe.test(t)) continue;
-    if(re.test(t)) return rs[i];
-  }
-  return null;
+// 找付款方式的 radio。只看「它自己的 label」，最多往上一層 —— 以前往上爬 3 層會把頁面別處
+// 的說明文字吃進來，導致把不相干的 radio 誤判成現地決済/刷卡。
+var labelOf=function(el){
+  var t='', l;
+  if(el.id){ try{ l=document.querySelector('label[for="'+el.id+'"]'); if(l) t+=l.textContent; }catch(e){} }
+  l=el.closest('label'); if(l) t+=' '+l.textContent;
+  if(t.replace(/\s/g,'').length<4 && el.parentElement) t+=' '+el.parentElement.textContent;
+  return t.replace(/\s+/g,' ').slice(0,300);
 };
-var onSite=byId('payment_on_site')        || radioByText(/現地決済|現地でお支払|現地払/, null);
-var credit=byId('payment_credit_hotepay') || radioByText(/オンライン決済|事前決済|クレジット/, /現地/);
-// 預設就是 'credit'：冬プラン沒有現地決済選項，甚至可能連 radio 都不畫，直接走刷卡路線
+var payRadios=[].slice.call(document.querySelectorAll('input[type=radio]')).filter(function(r){
+  return /決済|支払|クレジット|カード/.test(labelOf(r));
+});
+var onSite=byId('payment_on_site'), credit=byId('payment_credit_hotepay'), i, t;
+for(i=0;i<payRadios.length;i++){
+  t=labelOf(payRadios[i]);
+  if(!credit && /クレジット|オンライン決済|事前決済/.test(t) && !/現地/.test(t)) credit=payRadios[i];
+  if(!onSite  && /現地/.test(t)) onSite=payRadios[i];
+}
+// 預設 'credit'：冬プラン沒有現地決済，甚至可能連 radio 都不畫，直接走刷卡路線
 var method='credit';
 if(onSite && !v.force_credit){
   onSite.checked=true; onSite.click(); fire(onSite); method='on_site';
 } else if(credit){
   credit.checked=true; credit.click(); fire(credit); method='credit';
+} else if(payRadios.length===1){          // 只有一個付款選項，那就是它
+  payRadios[0].checked=true; payRadios[0].click(); fire(payRadios[0]); credit=payRadios[0]; method='credit';
 }
 if(method==='credit'){                   // 少數方案卡號欄位就在這頁，有就順手填
   setEl(byId('inputCardNo'), v.card_no);
@@ -305,7 +310,13 @@ var tt=byId('traffic_type'); if(tt){ tt.value=v.traffic; fire(tt); }
 var hh=byId('check_in_hour'); if(hh){ hh.value=v.checkin_h; fire(hh); }
 var mm=byId('check_in_minute'); if(mm){ mm.value=v.checkin_m; fire(mm); }
 setEl(byId('request'), v.note);
-return method;   // 'credit' / 'on_site' / 'unknown' → Python 用它決定要不要往卡片頁走
+// 回傳選到什麼＋看到哪些付款 radio，方便在終端機直接看出判斷對不對
+return {method: method,
+        radios: payRadios.length,
+        creditFound: !!credit,
+        onSiteFound: !!onSite,
+        creditChecked: !!(credit && credit.checked),
+        labels: payRadios.map(function(r){ return labelOf(r).slice(0,30); })};
 """
 
 # 讀取 / 強制設定「市区町村郡/番地」欄位（不含事件觸發的讀取版本）
@@ -559,7 +570,13 @@ def _fill_contact(driver):
     time.sleep(1.0)
     try:
         guest = dict(GUEST, force_credit=FORCE_CREDIT)
-        method = driver.execute_script(JS_FILL_FORM, guest)   # 'credit' / 'on_site' / 'unknown'
+        info = driver.execute_script(JS_FILL_FORM, guest)
+        if isinstance(info, dict):
+            method = info.get("method")
+            dbg = (f"[付款={method} 已勾={info.get('creditChecked')} "
+                   f"付款radio={info.get('radios')}個 {info.get('labels')}]")
+        else:                                   # 舊版相容
+            method, dbg = info, ""
         _force_address(driver, GUEST["addr"])   # 對抗郵便番号觸發的非同步地址自動帶入
         if method == "credit" and FILL_CARD:
             # 刷卡路線：卡號欄位在「オンライン決済手続き」之後的頁面才出現
@@ -567,11 +584,12 @@ def _fill_contact(driver):
             done, total = _check_agreements(driver)   # 順手勾「承諾/同意」必勾項
             if total:
                 why += f"，同意欄已勾 {done}/{total}"
+            why += " " + dbg
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             return "filled_card:" + why if ok else "no_card:" + why
         _check_agreements(driver)
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        return "filled_on_site" if method == "on_site" else "filled"
+        return ("filled_on_site:" + dbg) if method == "on_site" else ("filled:" + dbg)
     except Exception:
         return "error"
 
@@ -667,12 +685,13 @@ def _report(label, ok, contact, err):
     elif isinstance(contact, str) and contact.startswith("expired:"):
         print(f"   ⚠️ {label} 撞到『接続を切りました』錯誤頁：{contact.split(':',1)[1]}")
         print(f"      → 多半是同一步被送出兩次或 session 失效。這個視窗要重跑（先關掉它）")
-    elif contact == "filled_on_site":
-        print(f"   ✅ {label} 已填好訂房者資料，付款選『現地決済』；下一顆是「予約を確定する」，請自己按")
-    elif contact == "filled":
-        print(f"   ✅ {label} 已填到訂房者資料頁（停在確認前，未送出）")
     elif isinstance(contact, str) and contact.startswith("filled_card:"):
-        print(f"   ✅ {label} 已選信用卡並填好測試卡號（{contact.split(':',1)[1]}）；停在確定前，未送出")
+        print(f"   ✅ {label} 已選信用卡並填好卡片資料（{contact.split(':',1)[1]}）；停在確定前，未送出")
+    elif isinstance(contact, str) and contact.startswith("filled_on_site"):
+        print(f"   ⚠️ {label} 付款被選成『現地決済』（冬プラン應該只有刷卡！）{contact.split(':',1)[-1]}")
+        print(f"      → 請在該視窗手動改選信用卡；並把這行貼給我")
+    elif isinstance(contact, str) and contact.startswith("filled"):
+        print(f"   ✅ {label} 已填到訂房者資料頁（停在確認前，未送出）{contact.split(':',1)[-1]}")
     elif isinstance(contact, str) and contact.startswith("no_card:"):
         print(f"   ✅ {label} 訂房者資料已填好；⚠️ 卡號沒填成功：{contact.split(':',1)[1]}，請看該視窗手動處理")
     elif contact == "blocked":
